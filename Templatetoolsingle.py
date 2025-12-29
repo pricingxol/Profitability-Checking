@@ -19,7 +19,7 @@ st.title("📊 Profitability Checking – Akseptasi Manual")
 # =====================================================
 # LOAD MASTER COVERAGE (BACKEND ONLY)
 # =====================================================
-MASTER_FILE = "Data Base.xlsx"
+MASTER_FILE = "Master File.xlsx"
 
 df_master = pd.read_excel(MASTER_FILE, sheet_name="master coverage")
 df_master.columns = [c.strip() for c in df_master.columns]
