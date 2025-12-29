@@ -2,217 +2,217 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 from datetime import datetime
-from reportlab.lib.pagesizes import A4
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Table, TableStyle
-from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.lib import colors
-from io import BytesIO
+from fpdf import FPDF
 
-# ===============================
+# =====================================================
 # PAGE CONFIG
-# ===============================
+# =====================================================
 st.set_page_config(
-    page_title="Profitability Checking – Akseptasi Manual",
+    page_title="📊 Profitability Checking – Akseptasi Manual",
     layout="wide"
 )
 
-st.title("📊 Profitability Checking – Akseptasi Manual")
+st.markdown("## 📊 **Profitability Checking – Akseptasi Manual**")
+st.caption("Versi Excel-driven | Logic match Bulk Profitability")
 
-# ===============================
-# LOAD MASTER FILE
-# ===============================
-MASTER_FILE = "Master File.xlsx"
-df_master = pd.read_excel(MASTER_FILE)
-df_master["Coverage"] = df_master["Coverage"].astype(str)
-master = df_master.set_index("Coverage").to_dict("index")
-coverage_list = list(master.keys())
+# =====================================================
+# LOAD MASTER EXCEL
+# =====================================================
+@st.cache_data
+def load_master():
+    df = pd.read_excel("Master File.xlsx", sheet_name="master coverage")
+    df.columns = df.columns.str.strip()
+    return df
 
-# ===============================
-# ASSUMPTIONS
-# ===============================
-st.sidebar.header("Asumsi Profitability")
+df_master = load_master()
 
-loss_ratio = st.sidebar.number_input("Loss Ratio", 0.0, 1.0, 0.40, 0.01)
-premi_xol = st.sidebar.number_input("Premi XOL (%)", 0.0, 100.0, 14.07, 0.01) / 100
-expense = st.sidebar.number_input("Expense (%)", 0.0, 100.0, 15.0, 0.01) / 100
-
-# ===============================
-# POLICY INFO
-# ===============================
-st.subheader("📄 Informasi Polis")
-insured = st.text_input("Nama Tertanggung")
-sdate = st.date_input("Periode Mulai")
-edate = st.date_input("Periode Akhir")
-
-# ===============================
-# INPUT TABLE
-# ===============================
-st.subheader("📋 Input Coverage")
-
-if "rows" not in st.session_state:
-    st.session_state.rows = 1
-
-def add_row():
-    st.session_state.rows += 1
-
-df_input = pd.DataFrame({
-    "Coverage": [coverage_list[0]] * st.session_state.rows,
-    "Rate (%)": [0.0] * st.session_state.rows,
-    "TSI_IDR": [0.0] * st.session_state.rows,
-    "% Askrindo": [10.0] * st.session_state.rows,
-    "% Fakultatif": [0.0] * st.session_state.rows,
-    "% Komisi Fakultatif": [0.0] * st.session_state.rows,
-    "% LOL": [100.0] * st.session_state.rows,
-    "% Akuisisi": [15.0] * st.session_state.rows,
-})
-
-df_edit = st.data_editor(
-    df_input,
-    use_container_width=True,
-    num_rows="fixed",
-    column_config={
-        "Coverage": st.column_config.SelectboxColumn("Coverage", options=coverage_list)
+MASTER = {
+    r["Coverage"]: {
+        "rate_min": r["Rate_Min"] if not pd.isna(r["Rate_Min"]) else None,
+        "or_cap": r["OR_Cap"],
+        "pool": r["%pool"],
+        "pool_cap": r["Amount_Pool"] if not pd.isna(r["Amount_Pool"]) else 0,
+        "kom_pool": r["Komisi_Pool"]
     }
-)
+    for _, r in df_master.iterrows()
+}
 
-st.button("➕ Tambah Coverage", on_click=add_row)
+COVERAGE_LIST = df_master["Coverage"].tolist()
 
-# ===============================
-# CORE ENGINE
-# ===============================
-def calc(row):
-    m = master[row["Coverage"]]
+# =====================================================
+# POLICY INFO
+# =====================================================
+st.markdown("### 📄 Informasi Polis")
+c1, c2, c3 = st.columns(3)
 
-    rate = row["Rate (%)"] / 100
-    ask = row["% Askrindo"] / 100
-    fac = row["% Fakultatif"] / 100
-    lol = row["% LOL"] / 100
-    acq = row["% Akuisisi"] / 100
-    kom_fac = row["% Komisi Fakultatif"] / 100
+with c1:
+    insured = st.text_input("Nama Tertanggung", "PT CONTOH TERTANGGUNG")
+with c2:
+    start_date = st.date_input("Periode Mulai")
+with c3:
+    end_date = st.date_input("Periode Akhir")
 
-    exposure = row["TSI_IDR"]
-    S_ask = ask * exposure
+# =====================================================
+# ASSUMPTIONS
+# =====================================================
+st.sidebar.markdown("## ⚙️ Asumsi Profitability")
 
-    pool_pct = (m["%pool"] or 0) / 100
-    pool_cap = m["Amount_Pool"] or 0
-    kom_pool = (m["Komisi_Pool"] or 0) / 100
+loss_ratio    = st.sidebar.number_input("Loss Ratio", 0.0, 1.0, 0.40, 0.01)
+premi_xol_pct = st.sidebar.number_input("Premi XOL (%)", 0.0, 100.0, 12.0, 0.01)
+expense_pct   = st.sidebar.number_input("Expense (%)", 0.0, 100.0, 15.0, 0.01)
 
-    pool_amt = min(pool_pct * S_ask, pool_cap * ask)
-    fac_amt = fac * exposure
+premi_xol  = premi_xol_pct / 100
+expense_rt = expense_pct / 100
 
-    OR_raw = S_ask - pool_amt - fac_amt
-    OR_amt = min(OR_raw, m["OR_Cap"])
-
-    Prem100 = rate * lol * exposure
-    Prem_ask = ask * Prem100
-    Prem_OR = (OR_amt / exposure) * Prem100 if exposure else 0
-    Prem_pool = (pool_amt / exposure) * Prem100 if exposure else 0
-    Prem_fac = fac * Prem100
-
-    if pd.isna(m["Rate_Min"]):
-        EL100 = loss_ratio * Prem100
-    else:
-        EL100 = m["Rate_Min"] * loss_ratio * exposure
-
-    EL_ask = ask * EL100
-    EL_pool = (pool_amt / exposure) * EL100 if exposure else 0
-    EL_fac = fac * EL100
-
-    akuisisi = acq * Prem_ask
-    xol = premi_xol * Prem_OR
-    exp = expense * Prem_ask
-    kom_pool_amt = kom_pool * Prem_pool
-    kom_fac_amt = kom_fac * Prem_fac
-
-    result = (
-        Prem_ask
-        - Prem_pool
-        - Prem_fac
-        - akuisisi
-        + kom_pool_amt
-        + kom_fac_amt
-        - EL_ask
-        + EL_pool
-        + EL_fac
-        - xol
-        - exp
-    )
-
-    return pd.Series({
-        "Prem_Askrindo": Prem_ask,
-        "Prem_OR": Prem_OR,
-        "EL_Askrindo": EL_ask,
-        "XOL": xol,
-        "Expense": exp,
-        "Result": result
+# =====================================================
+# INPUT TABLE INIT
+# =====================================================
+if "df_input" not in st.session_state:
+    st.session_state.df_input = pd.DataFrame({
+        "Delete": [False],
+        "Coverage": [COVERAGE_LIST[0]],
+        "Rate (%)": [0.0],
+        "TSI_IDR": [0.0],
+        "% Askrindo": [10.0],
+        "% Fakultatif": [0.0],
+        "% Komisi Fakultatif": [0.0],
+        "% LOL": [100.0],
+        "% Akuisisi": [15.0],
     })
 
-# ===============================
-# CALCULATE
-# ===============================
+# =====================================================
+# INPUT TABLE
+# =====================================================
+st.markdown("### 🧾 Input Coverage")
+
+edited = st.data_editor(
+    st.session_state.df_input,
+    column_config={
+        "Delete": st.column_config.CheckboxColumn("🗑"),
+        "Coverage": st.column_config.SelectboxColumn("Coverage", options=COVERAGE_LIST),
+        "Rate (%)": st.column_config.NumberColumn("Rate (%)", format="%.5f", step=0.00001),
+        "TSI_IDR": st.column_config.NumberColumn("TSI IDR", format="%,.0f"),
+    },
+    use_container_width=True
+)
+
+# Delete rows
+edited = edited[~edited["Delete"]].copy()
+edited["Delete"] = False
+st.session_state.df_input = edited
+
+# Add row
+if st.button("➕ Tambah Coverage"):
+    st.session_state.df_input = pd.concat(
+        [st.session_state.df_input,
+         st.session_state.df_input.iloc[-1:].assign(Delete=False)],
+        ignore_index=True
+    )
+
+# =====================================================
+# CORE ENGINE
+# =====================================================
+def run_profitability(df):
+    rows = []
+
+    for _, r in df.iterrows():
+        m = MASTER[r["Coverage"]]
+
+        rate = r["Rate (%)"] / 100
+        tsi  = r["TSI_IDR"]
+        ask  = r["% Askrindo"] / 100
+        fac  = r["% Fakultatif"] / 100
+
+        exposure = min(tsi, m["or_cap"])
+        S_ask = ask * exposure
+
+        pool_amt = min(m["pool"] * S_ask, m["pool_cap"] * ask) if m["pool"] > 0 else 0
+        fac_amt  = fac * exposure
+        OR_amt   = max(S_ask - pool_amt - fac_amt, 0)
+
+        prem100  = rate * tsi
+        prem_ask = prem100 * ask
+        prem_or  = prem100 * (OR_amt / exposure) if exposure > 0 else 0
+
+        # Expected Loss
+        if m["rate_min"] is not None:
+            EL_100 = m["rate_min"] * tsi * loss_ratio
+        else:
+            EL_100 = loss_ratio * prem100
+
+        EL_ask = EL_100 * ask
+
+        XL_cost = premi_xol * prem_or
+        expense = expense_rt * prem_ask
+        acq     = (r["% Akuisisi"] / 100) * prem_ask
+
+        result = prem_ask - acq - EL_ask - XL_cost - expense
+
+        rows.append([
+            r["Coverage"], exposure, prem_ask, prem_or,
+            EL_ask, XL_cost, expense, result
+        ])
+
+    out = pd.DataFrame(rows, columns=[
+        "Coverage","Exposure_OR","Prem_Askrindo","Prem_OR",
+        "EL_Askrindo","XOL","Expense","Result"
+    ])
+
+    total = out[["Exposure_OR","Prem_Askrindo","Prem_OR","EL_Askrindo","XOL","Expense","Result"]].sum()
+    total["Coverage"] = "TOTAL"
+    out = pd.concat([out, total.to_frame().T], ignore_index=True)
+
+    out["%Result"] = out["Result"] / out["Prem_Askrindo"]
+
+    return out
+
+# =====================================================
+# RUN
+# =====================================================
 if st.button("🚀 Calculate"):
-    res = df_edit.apply(calc, axis=1)
-    res["%Result"] = res["Result"] / res["Prem_Askrindo"]
+    res = run_profitability(st.session_state.df_input)
 
-    total = res.sum(numeric_only=True)
-    total["%Result"] = total["Result"] / total["Prem_Askrindo"]
-    res.loc["TOTAL"] = total
-
-    st.subheader("📈 Hasil Profitability")
+    st.markdown("### 📈 Hasil Profitability")
     st.dataframe(
-        res.style.format({
-            "Prem_Askrindo": "{:,.0f}",
-            "Prem_OR": "{:,.0f}",
-            "EL_Askrindo": "{:,.0f}",
-            "XOL": "{:,.0f}",
-            "Expense": "{:,.0f}",
-            "Result": "{:,.0f}",
-            "%Result": "{:.2%}"
-        }),
+        res.style
+        .format("{:,.0f}", subset=res.columns[1:-1])
+        .format("{:.2%}", subset=["%Result"]),
         use_container_width=True
     )
 
-    # ===============================
+    # =================================================
     # PDF EXPORT
-    # ===============================
+    # =================================================
     def export_pdf(df):
-        buffer = BytesIO()
-        doc = SimpleDocTemplate(buffer, pagesize=A4)
-        styles = getSampleStyleSheet()
-        elements = []
+        pdf = FPDF(orientation="L")
+        pdf.add_page()
+        pdf.set_font("Arial", size=9)
 
-        elements.append(Paragraph("<b>Profitability Checking Result</b>", styles["Title"]))
-        elements.append(Paragraph(f"Nama Tertanggung: {insured}", styles["Normal"]))
-        elements.append(Paragraph(f"Periode: {sdate} s/d {edate}", styles["Normal"]))
-        elements.append(Paragraph(f"Exported: {datetime.now()}", styles["Normal"]))
-        elements.append(Paragraph("<br/>", styles["Normal"]))
+        pdf.cell(0, 8, f"Profitability Result – {insured}", ln=1)
+        pdf.cell(0, 6, f"Periode: {start_date} s/d {end_date}", ln=1)
+        pdf.cell(
+            0, 6,
+            f"Loss Ratio: {loss_ratio:.2%} | XOL: {premi_xol_pct:.2f}% | Expense: {expense_pct:.2f}%",
+            ln=1
+        )
+        pdf.ln(4)
 
-        elements.append(Paragraph(
-            f"Asumsi: Loss Ratio {loss_ratio:.0%}, XOL {premi_xol:.2%}, Expense {expense:.0%}",
-            styles["Normal"]
-        ))
-        elements.append(Paragraph("<br/>", styles["Normal"]))
+        for col in df.columns:
+            pdf.cell(35, 6, col, border=1)
+        pdf.ln()
 
-        table_data = [["Item"] + list(df.columns)]
-        for idx, row in df.iterrows():
-            table_data.append([str(idx)] + [f"{v:,.0f}" if isinstance(v, (int, float)) else v for v in row])
+        for _, row in df.iterrows():
+            for v in row:
+                pdf.cell(35, 6, f"{v:,.0f}" if isinstance(v,(int,float)) else str(v), border=1)
+            pdf.ln()
 
-        table = Table(table_data, repeatRows=1)
-        table.setStyle(TableStyle([
-            ("GRID", (0,0), (-1,-1), 0.5, colors.grey),
-            ("BACKGROUND", (0,0), (-1,0), colors.lightgrey),
-            ("ALIGN", (1,1), (-1,-1), "RIGHT")
-        ]))
+        return pdf.output(dest="S").encode("latin-1")
 
-        elements.append(table)
-        doc.build(elements)
-        buffer.seek(0)
-        return buffer
+    pdf_bytes = export_pdf(res)
 
-    pdf = export_pdf(res)
     st.download_button(
         "📄 Download PDF",
-        pdf,
-        file_name=f"Profitability_{insured}_{datetime.now():%Y%m%d_%H%M}.pdf",
+        pdf_bytes,
+        file_name=f"Profitability_{insured}_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
         mime="application/pdf"
     )
