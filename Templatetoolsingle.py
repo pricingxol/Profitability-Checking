@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 from datetime import datetime
 from fpdf import FPDF
 
@@ -8,7 +7,7 @@ from fpdf import FPDF
 # PAGE CONFIG
 # =====================================================
 st.set_page_config(
-    page_title="📊 Profitability Checking – Akseptasi Manual",
+    page_title="Profitability Checking – Akseptasi Manual",
     layout="wide"
 )
 
@@ -57,15 +56,15 @@ with c3:
 # =====================================================
 st.sidebar.markdown("## ⚙️ Asumsi Profitability")
 
-loss_ratio    = st.sidebar.number_input("Loss Ratio", 0.0, 1.0, 0.40, 0.01)
+loss_ratio = st.sidebar.number_input("Loss Ratio", 0.0, 1.0, 0.40, 0.01)
 premi_xol_pct = st.sidebar.number_input("Premi XOL (%)", 0.0, 100.0, 12.0, 0.01)
-expense_pct   = st.sidebar.number_input("Expense (%)", 0.0, 100.0, 15.0, 0.01)
+expense_pct = st.sidebar.number_input("Expense (%)", 0.0, 100.0, 15.0, 0.01)
 
-premi_xol  = premi_xol_pct / 100
+premi_xol = premi_xol_pct / 100
 expense_rt = expense_pct / 100
 
 # =====================================================
-# INIT INPUT TABLE (SAFE)
+# SAFE EMPTY ROW
 # =====================================================
 def empty_row():
     return {
@@ -92,29 +91,42 @@ edited = st.data_editor(
     st.session_state.df_input,
     column_config={
         "Delete": st.column_config.CheckboxColumn("🗑"),
-        "Coverage": st.column_config.SelectboxColumn("Coverage", options=COVERAGE_LIST),
-        "Rate (%)": st.column_config.NumberColumn("Rate (%)", format="%.5f", step=0.00001),
-        "TSI_IDR": st.column_config.NumberColumn("TSI IDR", format="%,.0f"),
+        "Coverage": st.column_config.SelectboxColumn(
+            "Coverage",
+            options=COVERAGE_LIST
+        ),
+        "Rate (%)": st.column_config.NumberColumn(
+            "Rate (%)",
+            format="%.5f",
+            step=0.00001
+        ),
+        "TSI_IDR": st.column_config.NumberColumn(
+            "TSI IDR",
+            format=", .0f".replace(" ", "")
+        ),
+        "% Askrindo": st.column_config.NumberColumn("%. Askrindo", format="%.2f"),
+        "% Fakultatif": st.column_config.NumberColumn("%. Fakultatif", format="%.2f"),
+        "% Komisi Fakultatif": st.column_config.NumberColumn("%. Komisi Fak", format="%.2f"),
+        "% LOL": st.column_config.NumberColumn("%. LOL", format="%.2f"),
+        "% Akuisisi": st.column_config.NumberColumn("%. Akuisisi", format="%.2f"),
     },
     use_container_width=True,
     num_rows="fixed"
 )
 
-# ==========================
+# =====================================================
 # DELETE ROW (SAFE)
-# ==========================
+# =====================================================
 edited = edited[~edited["Delete"]].copy()
-
-# Kalau habis → seed ulang 1 row kosong
 if edited.empty:
     edited = pd.DataFrame([empty_row()])
 
 edited["Delete"] = False
 st.session_state.df_input = edited
 
-# ==========================
+# =====================================================
 # ADD ROW
-# ==========================
+# =====================================================
 if st.button("➕ Tambah Coverage"):
     st.session_state.df_input = pd.concat(
         [st.session_state.df_input, pd.DataFrame([empty_row()])],
@@ -131,20 +143,20 @@ def run_profitability(df):
         m = MASTER[r["Coverage"]]
 
         rate = r["Rate (%)"] / 100
-        tsi  = r["TSI_IDR"]
-        ask  = r["% Askrindo"] / 100
-        fac  = r["% Fakultatif"] / 100
+        tsi = r["TSI_IDR"]
+        ask = r["% Askrindo"] / 100
+        fac = r["% Fakultatif"] / 100
 
         exposure = min(tsi, m["or_cap"])
         S_ask = ask * exposure
 
         pool_amt = min(m["pool"] * S_ask, m["pool_cap"] * ask) if m["pool"] > 0 else 0
-        fac_amt  = fac * exposure
-        OR_amt   = max(S_ask - pool_amt - fac_amt, 0)
+        fac_amt = fac * exposure
+        OR_amt = max(S_ask - pool_amt - fac_amt, 0)
 
-        prem100  = rate * tsi
+        prem100 = rate * tsi
         prem_ask = prem100 * ask
-        prem_or  = prem100 * (OR_amt / exposure) if exposure > 0 else 0
+        prem_or = prem100 * (OR_amt / exposure) if exposure > 0 else 0
 
         if m["rate_min"] is not None:
             EL_100 = m["rate_min"] * tsi * loss_ratio
@@ -155,7 +167,7 @@ def run_profitability(df):
 
         XL_cost = premi_xol * prem_or
         expense = expense_rt * prem_ask
-        acq     = (r["% Akuisisi"] / 100) * prem_ask
+        acq = (r["% Akuisisi"] / 100) * prem_ask
 
         result = prem_ask - acq - EL_ask - XL_cost - expense
 
@@ -165,11 +177,11 @@ def run_profitability(df):
         ])
 
     out = pd.DataFrame(rows, columns=[
-        "Coverage","Exposure_OR","Prem_Askrindo","Prem_OR",
-        "EL_Askrindo","XOL","Expense","Result"
+        "Coverage", "Exposure_OR", "Prem_Askrindo", "Prem_OR",
+        "EL_Askrindo", "XOL", "Expense", "Result"
     ])
 
-    total = out.iloc[:,1:].sum()
+    total = out.iloc[:, 1:].sum()
     total["Coverage"] = "TOTAL"
     out = pd.concat([out, total.to_frame().T], ignore_index=True)
 
