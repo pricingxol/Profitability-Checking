@@ -83,32 +83,47 @@ edited_df = st.data_editor(
         "Coverage": st.column_config.SelectboxColumn(
             options=coverage_list
         ),
+
+        # RATE – 5 DESIMAL
         "Rate (%)": st.column_config.NumberColumn(
-            format=".5f", step=0.00001, allow_none=False
+            format=".5f",
+            step=0.00001
         ),
+
+        # AMOUNT – RIBUAN
         "TSI_IDR": st.column_config.NumberColumn(
-            format=",.0f", step=1_000_000, allow_none=False
+            format=",.0f",
+            step=1_000_000
         ),
         "Limit_IDR": st.column_config.NumberColumn(
-            format=",.0f", step=1_000_000, allow_none=False
+            format=",.0f",
+            step=1_000_000
         ),
         "TopRisk_IDR": st.column_config.NumberColumn(
-            format=",.0f", step=1_000_000, allow_none=False
+            format=",.0f",
+            step=1_000_000
         ),
+
+        # PERCENT – 2 DESIMAL
         "% Askrindo Share": st.column_config.NumberColumn(
-            format=".2f", step=1.0, allow_none=False
+            format=".2f",
+            step=1.0
         ),
         "% Fakultatif Share": st.column_config.NumberColumn(
-            format=".2f", step=1.0, allow_none=False
+            format=".2f",
+            step=1.0
         ),
         "% Komisi Fakultatif": st.column_config.NumberColumn(
-            format=".2f", step=1.0, allow_none=False
+            format=".2f",
+            step=1.0
         ),
         "% LOL Premi": st.column_config.NumberColumn(
-            format=".2f", step=1.0, allow_none=False
+            format=".2f",
+            step=1.0
         ),
         "% Akuisisi": st.column_config.NumberColumn(
-            format=".2f", step=1.0, allow_none=False
+            format=".2f",
+            step=1.0
         ),
     }
 )
@@ -148,7 +163,7 @@ def run_profitability(row):
     Exposure_OR = min(ExposureBasis, or_cap)
     S_Askrindo = ask * Exposure_OR
 
-    # ===== POOL (DATA DRIVEN) =====
+    # ===== POOL (DATA-DRIVEN) =====
     if pool_rate > 0:
         Pool = min(pool_rate * S_Askrindo, pool_cap * ask)
     else:
@@ -205,6 +220,7 @@ def run_profitability(row):
 # RUN CALCULATION
 # =====================================================
 if st.button("🚀 Calculate"):
+
     results = []
     warnings = []
 
