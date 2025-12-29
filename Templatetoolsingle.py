@@ -1,11 +1,10 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import os
 
-# =====================================================
+# =============================
 # PAGE CONFIG
-# =====================================================
+# =============================
 st.set_page_config(
     page_title="Profitability Checking – Akseptasi Manual",
     layout="wide"
@@ -14,64 +13,36 @@ st.set_page_config(
 st.title("📊 Profitability Checking – Akseptasi Manual")
 st.caption("Versi Excel-driven | Logic match Bulk Profitability")
 
-# =====================================================
-# LOAD MASTER (TANPA HARDCODE SHEET)
-# =====================================================
+# =============================
+# LOAD MASTER EXCEL
+# =============================
 MASTER_FILE = "Master File.xlsx"
 
-if not os.path.exists(MASTER_FILE):
-    st.error("❌ Master File.xlsx tidak ditemukan")
-    st.stop()
+@st.cache_data
+def load_master():
+    xls = pd.ExcelFile(MASTER_FILE)
+    df_all = []
+    for s in xls.sheet_names:
+        df = pd.read_excel(xls, s)
+        df["Coverage"] = s
+        df_all.append(df)
+    return pd.concat(df_all, ignore_index=True)
 
-xls = pd.ExcelFile(MASTER_FILE)
-df_master = pd.read_excel(xls, xls.sheet_names[0])
-df_master.columns = df_master.columns.str.strip()
+df_master = load_master()
 
-REQUIRED_COLS = [
-    "Coverage",
-    "OR_Cap",
-    "Pool_Rate",
-    "Pool_Cap",
-    "Komisi_Pool",
-    "Rate_Min"
-]
-
-missing = [c for c in REQUIRED_COLS if c not in df_master.columns]
-if missing:
-    st.error(f"❌ Kolom MASTER kurang: {missing}")
-    st.stop()
-
-MASTER = df_master.set_index("Coverage").to_dict("index")
-COVERAGE_LIST = list(MASTER.keys())
-
-# =====================================================
-# SIDEBAR ASSUMPTIONS
-# =====================================================
+# =============================
+# ASSUMSI
+# =============================
 st.sidebar.header("Asumsi Profitability")
 
 LOSS_RATIO = st.sidebar.number_input("Asumsi Loss Ratio", 0.0, 1.0, 0.40, 0.01)
-XOL_RATE   = st.sidebar.number_input("Asumsi Premi XOL", 0.0, 1.0, 0.1407, 0.001)
-EXP_RATE   = st.sidebar.number_input("Asumsi Expense", 0.0, 1.0, 0.15, 0.01)
+PREMI_XOL  = st.sidebar.number_input("Asumsi Premi XOL", 0.0, 1.0, 0.1407, 0.0001)
+EXP_RATIO  = st.sidebar.number_input("Asumsi Expense", 0.0, 1.0, 0.15, 0.01)
 
-# =====================================================
-# POLICY INFO
-# =====================================================
-st.subheader("📄 Informasi Polis")
-col1, col2, col3 = st.columns(3)
-
-with col1:
-    nama_tertanggung = st.text_input("Nama Tertanggung", "")
-
-with col2:
-    sdate = st.date_input("Periode Mulai")
-
-with col3:
-    edate = st.date_input("Periode Akhir")
-
-# =====================================================
+# =============================
 # INPUT COVERAGE
-# =====================================================
-st.subheader("🧾 Input Coverage")
+# =============================
+st.subheader("📋 Input Coverage")
 
 if "rows" not in st.session_state:
     st.session_state.rows = [{}]
@@ -82,118 +53,146 @@ def add_row():
 def delete_row(i):
     st.session_state.rows.pop(i)
 
+results = []
+
 for i, row in enumerate(st.session_state.rows):
-    c1, c2, c3, c4, c5, c6, c7, c8, c9 = st.columns([2,1,2,1,1,1,1,1,0.5])
 
-    with c1:
-        cov = st.selectbox("Coverage", COVERAGE_LIST, key=f"cov_{i}")
+    cols = st.columns([2,1,2,1,1,1,1,1,0.3])
 
-    with c2:
-        rate = st.number_input("Rate (%)", value=0.0, format="%.5f", key=f"rate_{i}") / 100
+    with cols[0]:
+        coverage = st.selectbox(
+            "Coverage",
+            df_master["Coverage"].unique(),
+            key=f"cov_{i}"
+        )
 
-    with c3:
-        tsi = st.text_input("TSI IDR", value="", key=f"tsi_{i}")
-        tsi = float(tsi) if tsi else 0.0
+    with cols[1]:
+        rate = st.number_input("Rate (%)", 0.0, 100.0, 0.0, format="%.5f", key=f"rate_{i}") / 100
 
-    with c4:
+    with cols[2]:
+        tsi = st.text_input("TSI IDR", key=f"tsi_{i}")
+        tsi = float(tsi) if tsi not in ["", None] else 0.0
+
+    with cols[3]:
         ask = st.number_input("% Askrindo", 0.0, 100.0, 10.0, key=f"ask_{i}") / 100
 
-    with c5:
-        fak = st.number_input("% Fakultatif", 0.0, 100.0, 0.0, key=f"fak_{i}") / 100
+    with cols[4]:
+        fac = st.number_input("% Fakultatif", 0.0, 100.0, 0.0, key=f"fac_{i}") / 100
 
-    with c6:
-        kom_fak = st.number_input("% Komisi Fak", 0.0, 100.0, 0.0, key=f"komfak_{i}") / 100
+    with cols[5]:
+        kom_fac = st.number_input("% Komisi Fak", 0.0, 100.0, 0.0, key=f"komfac_{i}") / 100
 
-    with c7:
+    with cols[6]:
         lol = st.number_input("% LOL", 0.0, 100.0, 100.0, key=f"lol_{i}") / 100
 
-    with c8:
-        akq = st.number_input("% Akuisisi", 0.0, 100.0, 15.0, key=f"akq_{i}") / 100
+    with cols[7]:
+        acq = st.number_input("% Akuisisi", 0.0, 100.0, 15.0, key=f"acq_{i}") / 100
 
-    with c9:
-        st.button("🗑️", key=f"del_{i}", on_click=delete_row, args=(i,))
+    with cols[8]:
+        st.button("🗑", on_click=delete_row, args=(i,), key=f"del_{i}")
 
-    row.update(dict(
-        Coverage=cov, Rate=rate, TSI=tsi, Askrindo=ask,
-        Fak=fak, KomFak=kom_fak, LOL=lol, Akq=akq
-    ))
+    # =============================
+    # MASTER LOOKUP
+    # =============================
+    m = df_master[df_master["Coverage"] == coverage].iloc[0]
+
+    OR_CAP     = m["OR_CAP"]
+    POOL_RATE  = m["POOL_RATE"]
+    POOL_CAP   = m["POOL_CAP"]
+    KOM_POOL   = m["KOMISI_POOL"]
+    RATE_MIN   = m["RATE_MIN"]
+
+    # =============================
+    # TSI LOGIC
+    # =============================
+    TSI100 = tsi
+    TSI_Askrindo = ask * TSI100
+    Exposure_OR  = min(TSI_Askrindo, OR_CAP)
+
+    TSI_POOL = min(POOL_RATE * TSI_Askrindo, POOL_CAP * ask)
+    TSI_FAC  = fac * TSI100
+    TSI_OR   = TSI_Askrindo - TSI_POOL - TSI_FAC
+
+    # =============================
+    # PREMIUM
+    # =============================
+    Prem100 = rate * lol * TSI100
+    Prem_Askrindo = Prem100 * ask
+    Prem_POOL = Prem100 * (TSI_POOL / TSI100 if TSI100 > 0 else 0)
+    Prem_FAC  = Prem100 * fac
+    Prem_OR   = Prem100 * (TSI_OR / TSI100 if TSI100 > 0 else 0)
+
+    # =============================
+    # LOSS
+    # =============================
+    if not pd.isna(RATE_MIN):
+        EL100 = RATE_MIN * LOSS_RATIO * (lol * TSI100)
+    else:
+        EL100 = LOSS_RATIO * Prem100
+
+    EL_Askrindo = EL100 * ask
+    EL_POOL = EL100 * (TSI_POOL / TSI100 if TSI100 > 0 else 0)
+    EL_FAC  = EL100 * fac
+
+    # =============================
+    # COST
+    # =============================
+    Akuisisi = acq * Prem_Askrindo
+    Prem_XOL = PREMI_XOL * Prem_OR
+    Expense  = EXP_RATIO * Prem_Askrindo
+
+    Kom_POOL = KOM_POOL * Prem_POOL
+    Kom_FAC  = kom_fac * Prem_FAC
+
+    # =============================
+    # RESULT
+    # =============================
+    Result = (
+        Prem_Askrindo
+        - Akuisisi
+        - Prem_POOL
+        - Prem_FAC
+        + Kom_POOL
+        + Kom_FAC
+        - EL_Askrindo
+        + EL_POOL
+        + EL_FAC
+        - Prem_XOL
+        - Expense
+    )
+
+    results.append({
+        "Coverage": coverage,
+        "Prem_Askrindo": Prem_Askrindo,
+        "Prem_OR": Prem_OR,
+        "Prem_POOL": Prem_POOL,
+        "EL_Askrindo": EL_Askrindo,
+        "EL_POOL": EL_POOL,
+        "Prem_XOL": Prem_XOL,
+        "Expense": Expense,
+        "Result": Result,
+        "%Result": Result / Prem_Askrindo if Prem_Askrindo != 0 else 0
+    })
 
 st.button("➕ Tambah Coverage", on_click=add_row)
 
-# =====================================================
-# CALCULATION
-# =====================================================
-if st.button("🚀 Calculate"):
-    results = []
-
-    for r in st.session_state.rows:
-        m = MASTER[r["Coverage"]]
-
-        TSI100 = r["TSI"]
-        Prem100 = r["Rate"] * r["LOL"] * TSI100
-
-        TSI_Askr = r["Askrindo"] * TSI100
-        TSI_Pool = min(m["Pool_Rate"] * TSI_Askr, m["Pool_Cap"] * r["Askrindo"])
-        TSI_Fak  = r["Fak"] * TSI100
-        TSI_OR   = TSI_Askr - TSI_Pool - TSI_Fak
-
-        Exposure_OR = min(TSI_Askr, m["OR_Cap"])
-
-        Prem_Askr = Prem100 * r["Askrindo"]
-        Prem_POOL = Prem100 * (TSI_Pool / TSI100 if TSI100 else 0)
-        Prem_Fak  = Prem100 * r["Fak"]
-        Prem_OR   = Prem100 * (TSI_OR / TSI100 if TSI100 else 0)
-        Prem_XOL  = XOL_RATE * Prem_OR
-
-        if not pd.isna(m["Rate_Min"]):
-            EL100 = m["Rate_Min"] * LOSS_RATIO * TSI100 * r["LOL"]
-        else:
-            EL100 = LOSS_RATIO * Prem100
-
-        EL_Askr = EL100 * r["Askrindo"]
-        EL_POOL = EL100 * (TSI_Pool / TSI100 if TSI100 else 0)
-        EL_Fak  = EL100 * r["Fak"]
-
-        Akuisisi = r["Akq"] * Prem_Askr
-        Kom_POOL = m["Komisi_Pool"] * Prem_POOL
-        Kom_Fak  = r["KomFak"] * Prem_Fak
-        Expense  = EXP_RATE * Prem_Askr
-
-        Result = (
-            Prem_Askr
-            - Akuisisi
-            - Prem_POOL
-            - Prem_Fak
-            + Kom_POOL
-            + Kom_Fak
-            - EL_Askr
-            + EL_POOL
-            + EL_Fak
-            - Prem_XOL
-            - Expense
-        )
-
-        results.append([
-            r["Coverage"],
-            Prem_Askr, Prem_OR, Prem_POOL,
-            EL_Askr, EL_POOL,
-            Prem_XOL, Expense,
-            Result, Result / Prem_Askr if Prem_Askr else 0
-        ])
-
-    df = pd.DataFrame(results, columns=[
-        "Coverage","Prem_Askrindo","Prem_OR","Prem_POOL",
-        "EL_Askrindo","EL_POOL","Prem_XOL","Expense",
-        "Result","%Result"
-    ])
-
-    total = df.drop(columns=["Coverage"]).sum()
+# =============================
+# OUTPUT
+# =============================
+if results:
+    df = pd.DataFrame(results)
+    total = df.select_dtypes(np.number).sum()
     total["Coverage"] = "TOTAL"
-    df = pd.concat([df, pd.DataFrame([total])])
+    total["%Result"] = total["Result"] / total["Prem_Askrindo"]
+    df = pd.concat([df, pd.DataFrame([total])], ignore_index=True)
 
     st.subheader("📈 Hasil Profitability")
-    st.dataframe(
-        df.style.format({
-            c: "{:,.0f}" for c in df.columns if c not in ["Coverage","%Result"]
-        } | {"%Result": "{:.2%}"}
-    )
+
+    fmt = {}
+    for c in df.columns:
+        if c == "%Result":
+            fmt[c] = "{:.2%}"
+        elif c != "Coverage":
+            fmt[c] = "{:,.0f}"
+
+    st.dataframe(df.style.format(fmt), use_container_width=True)
