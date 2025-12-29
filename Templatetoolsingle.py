@@ -46,7 +46,7 @@ st.markdown("### 📄 Informasi Polis")
 c1, c2, c3 = st.columns(3)
 
 with c1:
-    insured = st.text_input("Nama Tertanggung", "PT CONTOH TERTANGGUNG")
+    insured = st.text_input("Nama Tertanggung", "")
 with c2:
     start_date = st.date_input("Periode Mulai")
 with c3:
@@ -65,20 +65,23 @@ premi_xol  = premi_xol_pct / 100
 expense_rt = expense_pct / 100
 
 # =====================================================
-# INPUT TABLE INIT
+# INIT INPUT TABLE (SAFE)
 # =====================================================
+def empty_row():
+    return {
+        "Delete": False,
+        "Coverage": COVERAGE_LIST[0],
+        "Rate (%)": 0.0,
+        "TSI_IDR": 0.0,
+        "% Askrindo": 10.0,
+        "% Fakultatif": 0.0,
+        "% Komisi Fakultatif": 0.0,
+        "% LOL": 100.0,
+        "% Akuisisi": 15.0,
+    }
+
 if "df_input" not in st.session_state:
-    st.session_state.df_input = pd.DataFrame({
-        "Delete": [False],
-        "Coverage": [COVERAGE_LIST[0]],
-        "Rate (%)": [0.0],
-        "TSI_IDR": [0.0],
-        "% Askrindo": [10.0],
-        "% Fakultatif": [0.0],
-        "% Komisi Fakultatif": [0.0],
-        "% LOL": [100.0],
-        "% Akuisisi": [15.0],
-    })
+    st.session_state.df_input = pd.DataFrame([empty_row()])
 
 # =====================================================
 # INPUT TABLE
@@ -93,19 +96,28 @@ edited = st.data_editor(
         "Rate (%)": st.column_config.NumberColumn("Rate (%)", format="%.5f", step=0.00001),
         "TSI_IDR": st.column_config.NumberColumn("TSI IDR", format="%,.0f"),
     },
-    use_container_width=True
+    use_container_width=True,
+    num_rows="fixed"
 )
 
-# Delete rows
+# ==========================
+# DELETE ROW (SAFE)
+# ==========================
 edited = edited[~edited["Delete"]].copy()
+
+# Kalau habis → seed ulang 1 row kosong
+if edited.empty:
+    edited = pd.DataFrame([empty_row()])
+
 edited["Delete"] = False
 st.session_state.df_input = edited
 
-# Add row
+# ==========================
+# ADD ROW
+# ==========================
 if st.button("➕ Tambah Coverage"):
     st.session_state.df_input = pd.concat(
-        [st.session_state.df_input,
-         st.session_state.df_input.iloc[-1:].assign(Delete=False)],
+        [st.session_state.df_input, pd.DataFrame([empty_row()])],
         ignore_index=True
     )
 
@@ -134,7 +146,6 @@ def run_profitability(df):
         prem_ask = prem100 * ask
         prem_or  = prem100 * (OR_amt / exposure) if exposure > 0 else 0
 
-        # Expected Loss
         if m["rate_min"] is not None:
             EL_100 = m["rate_min"] * tsi * loss_ratio
         else:
@@ -158,12 +169,11 @@ def run_profitability(df):
         "EL_Askrindo","XOL","Expense","Result"
     ])
 
-    total = out[["Exposure_OR","Prem_Askrindo","Prem_OR","EL_Askrindo","XOL","Expense","Result"]].sum()
+    total = out.iloc[:,1:].sum()
     total["Coverage"] = "TOTAL"
     out = pd.concat([out, total.to_frame().T], ignore_index=True)
 
     out["%Result"] = out["Result"] / out["Prem_Askrindo"]
-
     return out
 
 # =====================================================
@@ -178,41 +188,4 @@ if st.button("🚀 Calculate"):
         .format("{:,.0f}", subset=res.columns[1:-1])
         .format("{:.2%}", subset=["%Result"]),
         use_container_width=True
-    )
-
-    # =================================================
-    # PDF EXPORT
-    # =================================================
-    def export_pdf(df):
-        pdf = FPDF(orientation="L")
-        pdf.add_page()
-        pdf.set_font("Arial", size=9)
-
-        pdf.cell(0, 8, f"Profitability Result – {insured}", ln=1)
-        pdf.cell(0, 6, f"Periode: {start_date} s/d {end_date}", ln=1)
-        pdf.cell(
-            0, 6,
-            f"Loss Ratio: {loss_ratio:.2%} | XOL: {premi_xol_pct:.2f}% | Expense: {expense_pct:.2f}%",
-            ln=1
-        )
-        pdf.ln(4)
-
-        for col in df.columns:
-            pdf.cell(35, 6, col, border=1)
-        pdf.ln()
-
-        for _, row in df.iterrows():
-            for v in row:
-                pdf.cell(35, 6, f"{v:,.0f}" if isinstance(v,(int,float)) else str(v), border=1)
-            pdf.ln()
-
-        return pdf.output(dest="S").encode("latin-1")
-
-    pdf_bytes = export_pdf(res)
-
-    st.download_button(
-        "📄 Download PDF",
-        pdf_bytes,
-        file_name=f"Profitability_{insured}_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
-        mime="application/pdf"
     )
