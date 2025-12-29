@@ -56,7 +56,7 @@ start_date = st.date_input("Periode Mulai")
 end_date = st.date_input("Periode Akhir")
 
 # =====================================================
-# INPUT COVERAGE
+# INPUT COVERAGE (RAW INPUT, NO FORMAT)
 # =====================================================
 st.subheader("📋 Input Coverage")
 
@@ -83,48 +83,15 @@ edited_df = st.data_editor(
         "Coverage": st.column_config.SelectboxColumn(
             options=coverage_list
         ),
-
-        # RATE – 5 DESIMAL
-        "Rate (%)": st.column_config.NumberColumn(
-            format=".5f",
-            step=0.00001
-        ),
-
-        # AMOUNT – RIBUAN
-        "TSI_IDR": st.column_config.NumberColumn(
-            format=",.0f",
-            step=1_000_000
-        ),
-        "Limit_IDR": st.column_config.NumberColumn(
-            format=",.0f",
-            step=1_000_000
-        ),
-        "TopRisk_IDR": st.column_config.NumberColumn(
-            format=",.0f",
-            step=1_000_000
-        ),
-
-        # PERCENT – 2 DESIMAL
-        "% Askrindo Share": st.column_config.NumberColumn(
-            format=".2f",
-            step=1.0
-        ),
-        "% Fakultatif Share": st.column_config.NumberColumn(
-            format=".2f",
-            step=1.0
-        ),
-        "% Komisi Fakultatif": st.column_config.NumberColumn(
-            format=".2f",
-            step=1.0
-        ),
-        "% LOL Premi": st.column_config.NumberColumn(
-            format=".2f",
-            step=1.0
-        ),
-        "% Akuisisi": st.column_config.NumberColumn(
-            format=".2f",
-            step=1.0
-        ),
+        "Rate (%)": st.column_config.NumberColumn(step=0.00001),
+        "TSI_IDR": st.column_config.NumberColumn(step=1_000_000),
+        "Limit_IDR": st.column_config.NumberColumn(step=1_000_000),
+        "TopRisk_IDR": st.column_config.NumberColumn(step=1_000_000),
+        "% Askrindo Share": st.column_config.NumberColumn(step=1.0),
+        "% Fakultatif Share": st.column_config.NumberColumn(step=1.0),
+        "% Komisi Fakultatif": st.column_config.NumberColumn(step=1.0),
+        "% LOL Premi": st.column_config.NumberColumn(step=1.0),
+        "% Akuisisi": st.column_config.NumberColumn(step=1.0),
     }
 )
 
