@@ -20,13 +20,13 @@ MASTER_FILE = "Master File.xlsx"
 MASTER_SHEET = "master coverage"
 
 if not os.path.exists(MASTER_FILE):
-    st.error(f"❌ File '{MASTER_FILE}' tidak ditemukan di root folder.")
+    st.error(f"❌ File '{MASTER_FILE}' tidak ditemukan di root repo.")
     st.stop()
 
 df_master = pd.read_excel(MASTER_FILE, sheet_name=MASTER_SHEET)
 df_master.columns = [c.strip() for c in df_master.columns]
 
-# convert numeric columns safely
+# pastikan kolom numeric bersih
 for col in ["Rate_Min", "OR_Cap", "%pool", "Amount_Pool", "Komisi_Pool"]:
     if col in df_master.columns:
         df_master[col] = pd.to_numeric(df_master[col], errors="coerce")
@@ -61,7 +61,7 @@ start_date = st.date_input("Periode Mulai")
 end_date = st.date_input("Periode Akhir")
 
 # =====================================================
-# INPUT COVERAGE
+# INPUT COVERAGE (RAW INPUT)
 # =====================================================
 st.subheader("📋 Input Coverage")
 
@@ -110,7 +110,7 @@ def add_row():
 st.button("➕ Tambah Coverage", on_click=add_row)
 
 # =====================================================
-# CORE ENGINE
+# CORE ENGINE (EXCEL-MATCH)
 # =====================================================
 def run_profitability(row):
 
@@ -118,42 +118,60 @@ def run_profitability(row):
     m = master_map[cov]
 
     rate_min = m.get("Rate_Min", np.nan)
-    or_cap = m.get("OR_Cap", np.inf)
+    or_cap   = m.get("OR_Cap", np.inf)
     pool_rate = m.get("%pool", 0.0)
-    pool_cap = m.get("Amount_Pool", 0.0)
-    kom_pool = m.get("Komisi_Pool", 0.0)
+    pool_cap  = m.get("Amount_Pool", 0.0)
+    kom_pool  = m.get("Komisi_Pool", 0.0)
 
+    # convert input %
     rate = row["Rate (%)"] / 100
-    ask = row["% Askrindo Share"] / 100
-    fac = row["% Fakultatif Share"] / 100
+    ask  = row["% Askrindo Share"] / 100
+    fac  = row["% Fakultatif Share"] / 100
     kom_fak = row["% Komisi Fakultatif"] / 100
-    lol = row["% LOL Premi"] / 100
-    acq = row["% Akuisisi"] / 100
+    lol  = row["% LOL Premi"] / 100
+    acq  = row["% Akuisisi"] / 100
 
+    # exposure & OR
     ExposureBasis = max(row["Limit_IDR"], row["TopRisk_IDR"])
-    Exposure_OR = min(ExposureBasis, or_cap)
+    Exposure_OR   = min(ExposureBasis, or_cap)
+
+    # Our Share exposure
     S_Askrindo = ask * Exposure_OR
 
-    # ===== POOL =====
+    # ===== POOL (DATA-DRIVEN) =====
     if pool_rate > 0 and pool_cap > 0:
-        Pool = min(pool_rate * S_Askrindo, pool_cap * ask)
+        Pool_amt = min(pool_rate * S_Askrindo, pool_cap * ask)
     else:
-        Pool = 0
-        kom_pool = 0
+        Pool_amt = 0.0
+        kom_pool = 0.0
 
+    # Facultative
     Fac_amt = fac * Exposure_OR
-    OR = max(S_Askrindo - Pool - Fac_amt, 0)
-    Shortfall = max(Exposure_OR - (Pool + Fac_amt + OR), 0)
 
-    pct_pool = Pool / Exposure_OR if Exposure_OR else 0
+    # Own Retention exposure
+    OR_amt = max(S_Askrindo - Pool_amt - Fac_amt, 0)
+
+    # Shortfall (jadi risiko Askrindo)
+    Shortfall = max(Exposure_OR - (Pool_amt + Fac_amt + OR_amt), 0)
+
+    pct_pool = Pool_amt / Exposure_OR if Exposure_OR else 0
 
     # ===== PREMIUM =====
     Prem100 = rate * lol * row["TSI_IDR"]
+
+    # Our Share Premium (BRUTO)
     Prem_Askrindo = Prem100 * ask + rate * lol * Shortfall
 
+    # Premium to Pool & Fac (cash out)
+    Prem_POOL = Prem100 * pct_pool
+    Prem_Fac  = Prem100 * fac
+
+    # Acquisition
     Acq_amt = acq * Prem_Askrindo
-    KomPool = kom_pool * Prem100 * pct_pool
-    KomFak = kom_fak * Prem100 * fac
+
+    # Pool & Fac commission (recovery)
+    KomPool = kom_pool * Prem_POOL
+    KomFak  = kom_fak  * Prem_Fac
 
     # ===== EXPECTED LOSS =====
     if pd.isna(rate_min):
@@ -161,32 +179,42 @@ def run_profitability(row):
     else:
         EL100 = rate_min * ExposureBasis * loss_ratio
 
-    EL_Askrindo = EL100 * ask + (
-        EL100 * Shortfall / ExposureBasis if ExposureBasis else 0
-    )
+    # Our Share Loss (BRUTO)
+    EL_Askrindo = EL100 * ask + (EL100 * Shortfall / ExposureBasis if ExposureBasis else 0)
 
-    # ===== COST =====
-    XL = premi_xol * OR
-    Exp = expense_ratio * Prem_Askrindo
+    # Loss recovery
+    EL_POOL = EL100 * pct_pool
+    EL_Fac  = EL100 * fac
 
+    # ===== XOL & EXPENSE =====
+    # XOL dari PREMI OR (bukan exposure)
+    Prem_OR = Prem_Askrindo - Prem_POOL - Prem_Fac
+    XL_cost = premi_xol * Prem_OR
+
+    Expense = expense_ratio * Prem_Askrindo
+
+    # ===== RESULT (FINAL) =====
     Result = (
         Prem_Askrindo
-        - Prem100 * pct_pool
-        - Prem100 * fac
+        - Prem_POOL
+        - Prem_Fac
         - Acq_amt
         + KomPool
         + KomFak
         - EL_Askrindo
-        + EL100 * pct_pool
-        + EL100 * fac
-        - XL
-        - Exp
+        + EL_POOL
+        + EL_Fac
+        - XL_cost
+        - Expense
     )
 
     return {
         "Exposure_OR": Exposure_OR,
         "Prem_Askrindo": Prem_Askrindo,
+        "Prem_OR": Prem_OR,
         "EL_Askrindo": EL_Askrindo,
+        "XL_cost": XL_cost,
+        "Expense": Expense,
         "Result": Result,
         "%Result": Result / Prem_Askrindo if Prem_Askrindo else 0
     }
@@ -218,7 +246,10 @@ if st.button("🚀 Calculate"):
             "TopRisk_IDR": "{:,.0f}",
             "Exposure_OR": "{:,.0f}",
             "Prem_Askrindo": "{:,.0f}",
+            "Prem_OR": "{:,.0f}",
             "EL_Askrindo": "{:,.0f}",
+            "XL_cost": "{:,.0f}",
+            "Expense": "{:,.0f}",
             "Result": "{:,.0f}",
             "%Result": "{:.2%}"
         }),
