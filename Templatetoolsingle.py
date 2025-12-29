@@ -20,11 +20,16 @@ MASTER_FILE = "Master File.xlsx"
 MASTER_SHEET = "master coverage"
 
 if not os.path.exists(MASTER_FILE):
-    st.error(f"❌ File '{MASTER_FILE}' tidak ditemukan.")
+    st.error(f"❌ File '{MASTER_FILE}' tidak ditemukan di root folder.")
     st.stop()
 
 df_master = pd.read_excel(MASTER_FILE, sheet_name=MASTER_SHEET)
 df_master.columns = [c.strip() for c in df_master.columns]
+
+# convert numeric columns safely
+for col in ["Rate_Min", "OR_Cap", "%pool", "Amount_Pool", "Komisi_Pool"]:
+    if col in df_master.columns:
+        df_master[col] = pd.to_numeric(df_master[col], errors="coerce")
 
 coverage_list = df_master["Coverage"].tolist()
 master_map = df_master.set_index("Coverage").to_dict(orient="index")
@@ -56,7 +61,7 @@ start_date = st.date_input("Periode Mulai")
 end_date = st.date_input("Periode Akhir")
 
 # =====================================================
-# INPUT COVERAGE (RAW INPUT, NO FORMAT)
+# INPUT COVERAGE
 # =====================================================
 st.subheader("📋 Input Coverage")
 
@@ -78,11 +83,10 @@ if "df_input" not in st.session_state:
 
 edited_df = st.data_editor(
     st.session_state.df_input,
+    key="input_coverage_editor",
     use_container_width=True,
     column_config={
-        "Coverage": st.column_config.SelectboxColumn(
-            options=coverage_list
-        ),
+        "Coverage": st.column_config.SelectboxColumn(options=coverage_list),
         "Rate (%)": st.column_config.NumberColumn(step=0.00001),
         "TSI_IDR": st.column_config.NumberColumn(step=1_000_000),
         "Limit_IDR": st.column_config.NumberColumn(step=1_000_000),
@@ -106,18 +110,18 @@ def add_row():
 st.button("➕ Tambah Coverage", on_click=add_row)
 
 # =====================================================
-# CORE ENGINE (MASTER-DRIVEN)
+# CORE ENGINE
 # =====================================================
 def run_profitability(row):
 
     cov = row["Coverage"]
     m = master_map[cov]
 
-    rate_min = m["Rate_Min"]
-    or_cap = m["OR_Cap"]
-    pool_rate = m["%pool"]
-    pool_cap = m["Amount_Pool"]
-    kom_pool = m["Komisi_Pool"]
+    rate_min = m.get("Rate_Min", np.nan)
+    or_cap = m.get("OR_Cap", np.inf)
+    pool_rate = m.get("%pool", 0.0)
+    pool_cap = m.get("Amount_Pool", 0.0)
+    kom_pool = m.get("Komisi_Pool", 0.0)
 
     rate = row["Rate (%)"] / 100
     ask = row["% Askrindo Share"] / 100
@@ -130,8 +134,8 @@ def run_profitability(row):
     Exposure_OR = min(ExposureBasis, or_cap)
     S_Askrindo = ask * Exposure_OR
 
-    # ===== POOL (DATA-DRIVEN) =====
-    if pool_rate > 0:
+    # ===== POOL =====
+    if pool_rate > 0 and pool_cap > 0:
         Pool = min(pool_rate * S_Askrindo, pool_cap * ask)
     else:
         Pool = 0
@@ -140,6 +144,7 @@ def run_profitability(row):
     Fac_amt = fac * Exposure_OR
     OR = max(S_Askrindo - Pool - Fac_amt, 0)
     Shortfall = max(Exposure_OR - (Pool + Fac_amt + OR), 0)
+
     pct_pool = Pool / Exposure_OR if Exposure_OR else 0
 
     # ===== PREMIUM =====
@@ -156,8 +161,11 @@ def run_profitability(row):
     else:
         EL100 = rate_min * ExposureBasis * loss_ratio
 
-    EL_Askrindo = EL100 * ask + EL100 * (Shortfall / ExposureBasis if ExposureBasis else 0)
+    EL_Askrindo = EL100 * ask + (
+        EL100 * Shortfall / ExposureBasis if ExposureBasis else 0
+    )
 
+    # ===== COST =====
     XL = premi_xol * OR
     Exp = expense_ratio * Prem_Askrindo
 
@@ -195,9 +203,9 @@ if st.button("🚀 Calculate"):
         res = run_profitability(r)
         results.append({**r.to_dict(), **res})
 
-        if not pd.isna(master_map[r["Coverage"]]["Rate_Min"]):
-            if r["Rate (%)"] / 100 < master_map[r["Coverage"]]["Rate_Min"]:
-                warnings.append(f"⚠️ Rate di bawah minimum untuk {r['Coverage']}")
+        rate_min = master_map[r["Coverage"]].get("Rate_Min", np.nan)
+        if not pd.isna(rate_min) and (r["Rate (%)"] / 100 < rate_min):
+            warnings.append(f"⚠️ Rate di bawah minimum untuk {r['Coverage']}")
 
     df_result = pd.DataFrame(results)
 
