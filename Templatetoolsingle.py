@@ -6,292 +6,269 @@ import numpy as np
 # PAGE CONFIG
 # =====================================================
 st.set_page_config(
-    page_title="Profitability Checking – Akseptasi Manual",
+    page_title="Actuary Profitability Model",
     layout="wide"
 )
 
-st.title("📊 Profitability Checking – Akseptasi Manual")
-st.caption("Actuary Profitability Model")
+st.title("📊 Actuary Profitability Model")
+st.caption("Logic aligned with actuarial underwriting & bulk profitability model")
 
 # =====================================================
-# LOAD MASTER EXCEL (SINGLE SOURCE OF TRUTH)
+# LOAD MASTER EXCEL
 # =====================================================
 MASTER_FILE = "Master File.xlsx"
 
 df_master = pd.read_excel(MASTER_FILE)
 df_master.columns = df_master.columns.str.strip()
 
-REQUIRED_COLS = [
-    "Coverage",
-    "Rate_Min",
-    "OR_Cap",
-    "%pool",
-    "Amount_Pool",
-    "Komisi_Pool"
-]
-
-missing_cols = [c for c in REQUIRED_COLS if c not in df_master.columns]
-if missing_cols:
-    st.error(f"Kolom berikut tidak ditemukan di Master Excel: {missing_cols}")
-    st.stop()
-
 MASTER = df_master.set_index("Coverage")
-coverage_list = MASTER.index.tolist()
+
+COVERAGE_LIST = MASTER.index.tolist()
 
 # =====================================================
-# SIDEBAR – ASSUMPTIONS
+# GLOBAL ASSUMPTIONS
 # =====================================================
-st.sidebar.header("📊 Asumsi Profitability")
+st.sidebar.header("Asumsi Global")
 
 LOSS_RATIO = st.sidebar.number_input(
     "Asumsi Loss Ratio",
     min_value=0.0,
     max_value=1.0,
-    value=0.40000,
+    value=0.40,
+    step=0.00001,
     format="%.5f"
 )
 
 XOL_RATE = st.sidebar.number_input(
-    "Premi XOL (% dari Premi OR)",
+    "Asumsi Premi XOL",
     min_value=0.0,
     max_value=1.0,
-    value=0.14070,
+    value=0.1407,
+    step=0.00001,
     format="%.5f"
 )
 
-EXP_RATIO = st.sidebar.number_input(
-    "Expense Ratio",
+EXPENSE_RATIO = st.sidebar.number_input(
+    "Asumsi Expense",
     min_value=0.0,
     max_value=1.0,
-    value=0.15000,
+    value=0.15,
+    step=0.00001,
     format="%.5f"
 )
 
 # =====================================================
-# POLICY INFO
+# SESSION STATE
 # =====================================================
-st.markdown("### 📄 Informasi Polis")
+if "coverages" not in st.session_state:
+    st.session_state.coverages = [0]
 
-cA, cB, cC = st.columns(3)
-insured = cA.text_input("Nama Tertanggung", "")
-start_date = cB.date_input("Periode Mulai")
-end_date = cC.date_input("Periode Akhir")
+def add_coverage():
+    st.session_state.coverages.append(len(st.session_state.coverages))
+
+def remove_coverage(idx):
+    st.session_state.coverages.pop(idx)
 
 # =====================================================
 # INPUT COVERAGE
 # =====================================================
-st.markdown("### 📋 Input Coverage")
-
-if "rows" not in st.session_state:
-    st.session_state.rows = [{}]
-
-def add_row():
-    st.session_state.rows.append({})
-
-def delete_row(i):
-    st.session_state.rows.pop(i)
-    st.experimental_rerun()
+st.subheader("📋 Input Coverage")
 
 inputs = []
 
-for i in range(len(st.session_state.rows)):
+for i, idx in enumerate(st.session_state.coverages):
 
-    st.markdown(f"#### Coverage #{i+1}")
+    st.markdown(f"### Coverage #{i+1}")
+    col1, col2, col3 = st.columns(3)
 
-    c1, c2, c3, c4 = st.columns([2, 2, 2, 1])
+    with col1:
+        coverage = st.selectbox(
+            "Coverage",
+            COVERAGE_LIST,
+            key=f"cov_{idx}"
+        )
 
-    with c1:
-        coverage = st.selectbox("Coverage", coverage_list, key=f"cov_{i}")
-
-        rate_pct = st.number_input(
+        rate = st.number_input(
             "Rate (%)",
+            value=0.0,
+            step=0.00001,
             format="%.5f",
-            key=f"rate_{i}"
+            key=f"rate_{idx}"
         )
-        rate = rate_pct / 100
 
-        tsi_raw = st.text_input(
+        tsi = st.text_input(
             "TSI IDR",
-            key=f"tsi_{i}",
-            help="Input angka penuh tanpa koma"
+            value="",
+            key=f"tsi_{idx}"
         )
-        try:
-            tsi = float(tsi_raw)
-        except:
-            tsi = 0.0
 
-        top_risk_raw = st.text_input(
+        top_risk = st.text_input(
             "Top Risk (IDR)",
-            key=f"toprisk_{i}",
-            help="Opsional, tidak dipakai untuk EL"
+            value="",
+            key=f"top_{idx}"
         )
-        try:
-            top_risk = float(top_risk_raw)
-        except:
-            top_risk = 0.0
 
-    with c2:
-        st.markdown("**Share Structure**")
-        ask = st.number_input("% Askrindo", 0.0, 100.0, 10.0, key=f"ask_{i}") / 100
-        fac = st.number_input("% Fakultatif", 0.0, 100.0, 0.0, key=f"fac_{i}") / 100
+    with col2:
+        askrindo = st.number_input(
+            "% Askrindo",
+            value=10.0,
+            step=0.01,
+            key=f"ask_{idx}"
+        )
 
+        fakultatif = st.number_input(
+            "% Fakultatif",
+            value=0.0,
+            step=0.01,
+            key=f"fac_{idx}"
+        )
+
+        lol_pct = st.number_input(
+            "LOL (%)",
+            value=0.0,
+            step=0.01,
+            key=f"lol_{idx}"
+        )
+
+    with col3:
         lol_premi = st.number_input(
             "% LOL Premi",
-            0.0,
-            100.0,
-            100.0,
-            format="%.5f",
-            key=f"lolprem_{i}"
-        ) / 100
-
-        lol_claim_raw = st.text_input(
-            "LOL Klaim (IDR)",
-            key=f"lolclaim_{i}",
-            help="Isi jika ada limit klaim"
+            value=100.0,
+            step=0.01,
+            key=f"lolp_{idx}"
         )
+
+        komisi_fak = st.number_input(
+            "% Komisi Fakultatif",
+            value=0.0,
+            step=0.01,
+            key=f"komf_{idx}"
+        )
+
+        akuisisi = st.number_input(
+            "% Akuisisi",
+            value=15.0,
+            step=0.01,
+            key=f"akq_{idx}"
+        )
+
+        st.button("🗑️ Hapus", on_click=remove_coverage, args=(i,))
+
+    def to_float(x):
         try:
-            lol_claim = float(lol_claim_raw)
+            return float(str(x).replace(",", ""))
         except:
-            lol_claim = 0.0
-
-    with c3:
-        st.markdown("**Cost Structure**")
-        kom_fak = st.number_input("% Komisi Fakultatif", 0.0, 100.0, 0.0, key=f"komf_{i}") / 100
-        acq = st.number_input("% Akuisisi", 0.0, 100.0, 15.0, key=f"acq_{i}") / 100
-
-    with c4:
-        st.write("")
-        if st.button("🗑️", key=f"del_{i}"):
-            delete_row(i)
+            return 0.0
 
     inputs.append({
         "Coverage": coverage,
-        "Rate": rate,
-        "TSI": tsi,
-        "TopRisk": top_risk,
-        "ASK": ask,
-        "FAC": fac,
-        "LOL_Premi": lol_premi,
-        "LOL_Claim": lol_claim,
-        "KOM_FAK": kom_fak,
-        "ACQ": acq
+        "Rate": rate / 100,
+        "TSI": to_float(tsi),
+        "TopRisk": to_float(top_risk),
+        "Askrindo": askrindo / 100,
+        "Fakultatif": fakultatif / 100,
+        "LOL": lol_pct / 100,
+        "LOL_Premi": lol_premi / 100,
+        "KomFak": komisi_fak / 100,
+        "Akuisisi": akuisisi / 100
     })
 
-st.button("➕ Tambah Coverage", on_click=add_row)
+st.button("➕ Tambah Coverage", on_click=add_coverage)
 
 # =====================================================
-# CORE CALCULATION
+# CALCULATION
 # =====================================================
 if st.button("🚀 Calculate"):
 
-    results = []
+    rows = []
 
-    for r in inputs:
+    for d in inputs:
+        m = MASTER.loc[d["Coverage"]]
 
-        if r["TSI"] <= 0:
-            continue
+        # ===== Exposure Basis =====
+        if d["LOL"] > 0:
+            exposure = d["LOL"] * d["TSI"]
+        elif d["TopRisk"] > 0:
+            exposure = d["TopRisk"]
+        else:
+            exposure = d["TSI"]
 
-        m = MASTER.loc[r["Coverage"]]
+        # ===== OR Cap =====
+        tsi_ask = d["Askrindo"] * exposure
+        exposure_or = min(tsi_ask, m["OR_Cap"])
 
-        rate_min = m["Rate_Min"]
-        OR_CAP = m["OR_Cap"]
-        pool_rate = m["%pool"]
-        pool_cap = m["Amount_Pool"]
-        kom_pool = m["Komisi_Pool"]
-
-        TSI100 = r["TSI"]
-
-        # ===== PREMIUM =====
-        Premi100 = r["Rate"] * TSI100 * r["LOL_Premi"]
-
-        # ===== EXPOSURE FOR SPREADING =====
-        TSI_Askrindo = r["ASK"] * TSI100
-
-        TSI_POOL = min(
-            pool_rate * TSI_Askrindo,
-            pool_cap * r["ASK"]
+        # ===== Pool =====
+        pool_amt = min(
+            m["%pool"] * exposure_or,
+            m["Amount_Pool"] * d["Askrindo"]
         )
 
-        TSI_Fak = r["FAC"] * TSI100
+        fac_amt = d["Fakultatif"] * exposure_or
+        or_amt = max(exposure_or - pool_amt - fac_amt, 0)
 
-        TSI_OR = max(TSI_Askrindo - TSI_POOL - TSI_Fak, 0)
-        Exposure_OR = min(TSI_OR, OR_CAP)
+        # ===== Premium =====
+        prem_100 = d["Rate"] * d["TSI"] * d["LOL_Premi"]
 
-        # ===== PREMIUM SPLIT =====
-        Prem_Askrindo = Premi100 * (TSI_Askrindo / TSI100)
-        Prem_POOL = Premi100 * (TSI_POOL / TSI100)
-        Prem_Fak = Premi100 * (TSI_Fak / TSI100)
-        Prem_OR = Premi100 * (Exposure_OR / TSI100)
+        prem_ask = prem_100 * d["Askrindo"]
+        prem_pool = prem_100 * (pool_amt / exposure_or if exposure_or > 0 else 0)
 
-        # ===== EL BASIS =====
-        if r["LOL_Claim"] > 0:
-            EL_Basis = r["LOL_Claim"]
+        # ===== Commission =====
+        acq = prem_ask * d["Akuisisi"]
+        kom_pool = prem_pool * m["Komisi_Pool"]
+        kom_fak = prem_100 * d["Fakultatif"] * d["KomFak"]
+
+        # ===== EL =====
+        if not pd.isna(m["Rate_Min"]):
+            el_100 = m["Rate_Min"] * exposure * LOSS_RATIO
         else:
-            EL_Basis = TSI100
+            el_100 = prem_100 * LOSS_RATIO
 
-        # ===== EL 100 =====
-        if pd.isna(rate_min):
-            EL100 = LOSS_RATIO * Premi100
-        else:
-            EL100 = rate_min * EL_Basis * LOSS_RATIO
+        el_ask = el_100 * d["Askrindo"]
+        el_pool = el_100 * (pool_amt / exposure_or if exposure_or > 0 else 0)
 
-        # ===== EL SPLIT =====
-        EL_Askrindo = EL100 * (TSI_Askrindo / EL_Basis)
-        EL_POOL = EL100 * (TSI_POOL / EL_Basis)
-        EL_Fak = EL100 * (TSI_Fak / EL_Basis)
+        # ===== XOL =====
+        prem_xol = XOL_RATE * or_amt
 
-        # ===== COST =====
-        Akuisisi = r["ACQ"] * Prem_Askrindo
-        Kom_POOL = kom_pool * Prem_POOL
-        Kom_Fak = r["KOM_FAK"] * Prem_Fak
-        Prem_XOL = XOL_RATE * Prem_OR
-        Expense = EXP_RATIO * Prem_Askrindo
+        expense = EXPENSE_RATIO * prem_ask
 
-        # ===== RESULT =====
-        Result = (
-            Prem_Askrindo
-            - Akuisisi
-            - Prem_POOL
-            - Prem_Fak
-            + Kom_POOL
-            + Kom_Fak
-            - EL_Askrindo
-            + EL_POOL
-            + EL_Fak
-            - Prem_XOL
-            - Expense
+        result = (
+            prem_ask
+            - acq
+            - prem_pool
+            + kom_pool
+            + kom_fak
+            - el_ask
+            + el_pool
+            - prem_xol
+            - expense
         )
 
-        results.append({
-            "Coverage": r["Coverage"],
-            "Prem_Askrindo": Prem_Askrindo,
-            "Prem_POOL": Prem_POOL,
-            "Prem_OR": Prem_OR,
-            "EL_Askrindo": EL_Askrindo,
-            "EL_POOL": EL_POOL,
-            "Prem_XOL": Prem_XOL,
-            "Expense": Expense,
-            "Result": Result,
-            "%Result": Result / Prem_Askrindo
+        rows.append({
+            "Coverage": d["Coverage"],
+            "Prem_Askrindo": prem_ask,
+            "Prem_OR": or_amt * d["Rate"],
+            "Prem_POOL": prem_pool,
+            "EL_Askrindo": el_ask,
+            "EL_POOL": el_pool,
+            "Prem_XOL": prem_xol,
+            "Expense": expense,
+            "Result": result,
+            "%Result": result / prem_ask if prem_ask > 0 else 0
         })
 
-    df = pd.DataFrame(results)
-
-    total = df.select_dtypes("number").sum()
+    df = pd.DataFrame(rows)
+    total = df.select_dtypes(np.number).sum()
     total["Coverage"] = "TOTAL"
     total["%Result"] = total["Result"] / total["Prem_Askrindo"]
 
     df = pd.concat([df, pd.DataFrame([total])], ignore_index=True)
 
-    st.markdown("### 📈 Hasil Profitability")
-
+    st.subheader("📈 Hasil Profitability")
     st.dataframe(
-        df.style
-        .format("{:,.0f}", subset=[
-            "Prem_Askrindo","Prem_POOL","Prem_OR",
-            "EL_Askrindo","EL_POOL",
-            "Prem_XOL","Expense","Result"
-        ])
-        .format("{:.2%}", subset=["%Result"]),
+        df.style.format({
+            c: "{:,.0f}" for c in df.columns if c not in ["Coverage", "%Result"]
+        }).format({
+            "%Result": "{:.2%}"
+        }),
         use_container_width=True
     )
