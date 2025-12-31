@@ -10,19 +10,28 @@ st.set_page_config(
     layout="wide",
 )
 
-MASTER_FILE = "Master File.xlsx"
+MASTER_FILE = "/mnt/data/Master File.xlsx"
 MASTER_SHEET = "master coverage"
 
 # =========================
 # LOAD MASTER
 # =========================
-df_master = pd.read_excel(MASTER_FILE, sheet_name=master_coverage)
+df_master = pd.read_excel(
+    MASTER_FILE,
+    sheet_name=MASTER_SHEET
+)
+
 df_master.columns = df_master.columns.str.strip()
 
-coverage_list = df_master["Coverage"].tolist()
+coverage_list = df_master["Coverage"].dropna().tolist()
 
 def get_master_row(coverage):
     return df_master[df_master["Coverage"] == coverage].iloc[0]
+
+
+# 🔍 DEBUG – cek master sudah kebaca
+st.write("Master sheet loaded:")
+st.dataframe(df_master.head())
 
 # =========================
 # UI
