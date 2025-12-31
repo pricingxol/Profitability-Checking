@@ -1,3 +1,4 @@
+import os
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -10,7 +11,8 @@ st.set_page_config(
     layout="wide",
 )
 
-MASTER_FILE = "/mnt/data/Master File.xlsx"
+BASE_DIR = os.path.dirname(__file__)
+MASTER_FILE = os.path.join(BASE_DIR, "Master File.xlsx")
 MASTER_SHEET = "master coverage"
 
 # =========================
@@ -22,16 +24,12 @@ df_master = pd.read_excel(
 )
 
 df_master.columns = df_master.columns.str.strip()
-
 coverage_list = df_master["Coverage"].dropna().tolist()
 
-def get_master_row(coverage):
-    return df_master[df_master["Coverage"] == coverage].iloc[0]
-
-
-# 🔍 DEBUG – cek master sudah kebaca
+# DEBUG (hapus nanti)
 st.write("Master sheet loaded:")
 st.dataframe(df_master.head())
+
 
 # =========================
 # UI
