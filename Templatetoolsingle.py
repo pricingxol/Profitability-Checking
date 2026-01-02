@@ -65,10 +65,9 @@ st.subheader("📋 Input Coverage")
 inputs = []
 
 for i in st.session_state.rows:
- c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11 = st.columns(
-    [2,1.2,2,1,1,1,1,1,1,1,0.5]
-)
-
+    c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11 = st.columns(
+        [2,1.2,2,1,1,1,1,1,1,1,0.5]
+    )
 
     with c1:
         cov = st.selectbox(
@@ -108,10 +107,10 @@ for i in st.session_state.rows:
         ) / 100
 
     with c6:
-    acq = st.number_input(
-        "% Akuisisi", 0.0, 100.0, 15.0,
-        key=f"acq_{i}"
-    ) / 100
+        acq = st.number_input(
+            "% Akuisisi", 0.0, 100.0, 15.0,
+            key=f"acq_{i}"
+        ) / 100
 
     with c7:
         kom_fak = st.number_input(
@@ -142,20 +141,21 @@ for i in st.session_state.rows:
     with c11:
         st.button("🗑️", on_click=del_row, args=(i,), key=f"del_{i}")
 
- inputs.append({
-    "Coverage": cov,
-    "Rate": rate,
-    "TSI": tsi,
-    "TOP_RISK": top_risk,
-    "ASK": ask,
-    "FAC": fac,
-    "KOM_FAK": kom_fak,
-    "LOL_EXP": lol_exp,
-    "LOL_PREM": lol_prem,
-    "ACQ": st.session_state.get(f"acq_{i}", 0.15)
-})
+    inputs.append({
+        "Coverage": cov,
+        "Rate": rate,
+        "TSI": tsi,
+        "TOP_RISK": top_risk,
+        "ASK": ask,
+        "FAC": fac,
+        "KOM_FAK": kom_fak,
+        "LOL_EXP": lol_exp,
+        "LOL_PREM": lol_prem,
+        "ACQ": acq
+    })
 
 st.button("➕ Tambah Coverage", on_click=add_row)
+
 
 # =====================================================
 # CORE ENGINE
