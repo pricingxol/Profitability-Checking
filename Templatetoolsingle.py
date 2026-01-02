@@ -144,11 +144,16 @@ def calc(row):
     Prem_Fac      = Prem100 * (TSI_Fac / TSI100) if TSI100 else 0
     Prem_OR       = Prem100 * (Exposure_OR / TSI100) if TSI100 else 0
 
-    EL100 = LOSS_RATIO * (TSI100 * row["LOL_EXP"])
+     EL100 = (
+        rate_min * LOSS_RATIO * (TSI100 * row["LOL_EXP"])
+        if not pd.isna(rate_min)
+        else LOSS_RATIO * Prem100
+    )
 
     EL_Askrindo = EL100 * (TSI_Askrindo / TSI100) if TSI100 else 0
     EL_POOL     = EL100 * (TSI_Pool / TSI100) if TSI100 else 0
     EL_Fac      = EL100 * (TSI_Fac / TSI100) if TSI100 else 0
+
 
     # ===============================
     # SHORTFALL (INFORMATIONAL)
