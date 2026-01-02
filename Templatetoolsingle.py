@@ -86,14 +86,11 @@ for i in st.session_state.rows:
     )
 
     with c1:
-        rate_raw = st.text_input(
+        rate = float(st.text_input(
             "Rate (%)",
-            value=f"{round(float(m.get('RATE_MIN', 0)) * 100, 5):.5f}",
+            value="12.34567",
             key=f"rate_{i}"
-        )
-        
-        rate = float(rate_raw) / 100 if rate_raw else 0.0
-
+        )) / 100
 
     with c2:
         tsi_raw = st.text_input(
