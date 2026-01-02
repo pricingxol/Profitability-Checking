@@ -178,7 +178,9 @@ def calc(row):
     Result = (
         Prem_Askrindo
         - Prem_POOL
+        + Kom_POOL
         - Prem_Fac
+        + Kom_Fac
         - EL_Askrindo
         + EL_POOL
         + EL_Fac
