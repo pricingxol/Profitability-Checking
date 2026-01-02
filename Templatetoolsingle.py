@@ -82,7 +82,7 @@ for i in st.session_state.rows:
     # GRID INPUT LAINNYA
     # =========================
     c1, c2, c3, c4, c5, c6, c7, c8, c9, c10 = st.columns(
-        [1.2, 2, 1, 1, 1, 1, 1, 1, 1.2, 0.5]
+        [1.5, 2, 1, 1, 1, 1, 1, 1, 1.2, 0.5]
     )
 
     with c1:
