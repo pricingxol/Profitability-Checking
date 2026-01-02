@@ -123,6 +123,7 @@ st.button("➕ Tambah Coverage", on_click=add_row)
 def calc(row):
     m = MASTER.loc[row["Coverage"]]
 
+    rate_min  = m.get("RATE_MIN", np.nan)
     OR_CAP    = m["OR_CAP"]
     pool_rate = m["%POOL"]
     pool_cap  = m["AMOUNT_POOL"]
@@ -144,17 +145,25 @@ def calc(row):
     Prem_Fac      = Prem100 * (TSI_Fac / TSI100) if TSI100 else 0
     Prem_OR       = Prem100 * (Exposure_OR / TSI100) if TSI100 else 0
 
-    EL100 = LOSS_RATIO * (TSI100 * row["LOL_EXP"])
+    # ===============================
+    # EXPECTED LOSS (LOCKED LOGIC)
+    # ===============================
+    EL100 = (
+        rate_min * LOSS_RATIO * (TSI100 * row["LOL_EXP"])
+        if not pd.isna(rate_min)
+        else LOSS_RATIO * Prem100
+    )
 
     EL_Askrindo = EL100 * (TSI_Askrindo / TSI100) if TSI100 else 0
     EL_POOL     = EL100 * (TSI_Pool / TSI100) if TSI100 else 0
     EL_Fac      = EL100 * (TSI_Fac / TSI100) if TSI100 else 0
+    EL_OR       = EL100 * (Exposure_OR / TSI100) if TSI100 else 0
 
     # ===============================
     # SHORTFALL (INFORMATIONAL)
     # ===============================
     Prem_Shortfall = Prem_Askrindo - Prem_POOL - Prem_Fac - Prem_OR
-    EL_Shortfall   = EL_Askrindo - EL_POOL - EL_Fac
+    EL_Shortfall   = EL_Askrindo - EL_POOL - EL_Fac - EL_OR
 
     Akuisisi = row["ACQ"] * Prem_Askrindo
     Kom_POOL = kom_pool * Prem_POOL
@@ -164,7 +173,7 @@ def calc(row):
     Expense  = EXP_RATIO * Prem_Askrindo
 
     # ===============================
-    # FINAL RESULT (LOCKED FORMULA)
+    # FINAL RESULT (LOCKED)
     # ===============================
     Result = (
         Prem_Askrindo
@@ -180,10 +189,12 @@ def calc(row):
     return {
         "Coverage": row["Coverage"],
         "Prem_Askrindo": Prem_Askrindo,
+        "Prem_OR": Prem_OR,
         "Prem_POOL": Prem_POOL,
         "Prem_Fakultatif": Prem_Fac,
         "Prem_Shortfall": Prem_Shortfall,
         "EL_Askrindo": EL_Askrindo,
+        "EL_OR": EL_OR,
         "EL_POOL": EL_POOL,
         "EL_Fakultatif": EL_Fac,
         "EL_Shortfall": EL_Shortfall,
@@ -209,10 +220,12 @@ if st.button("🚀 Calculate"):
     st.dataframe(
         df.style.format({
             "Prem_Askrindo": "{:,.0f}",
+            "Prem_OR": "{:,.0f}",
             "Prem_POOL": "{:,.0f}",
             "Prem_Fakultatif": "{:,.0f}",
             "Prem_Shortfall": "{:,.0f}",
             "EL_Askrindo": "{:,.0f}",
+            "EL_OR": "{:,.0f}",
             "EL_POOL": "{:,.0f}",
             "EL_Fakultatif": "{:,.0f}",
             "EL_Shortfall": "{:,.0f}",
@@ -224,9 +237,6 @@ if st.button("🚀 Calculate"):
         use_container_width=True
     )
 
-    # ===============================
-    # SHORTFALL NOTE
-    # ===============================
     sf_cov = df.loc[df["Prem_Shortfall"] > 0, "Coverage"].tolist()
     if sf_cov:
         st.warning(
