@@ -65,9 +65,10 @@ st.subheader("📋 Input Coverage")
 inputs = []
 
 for i in st.session_state.rows:
-    c1, c2, c3, c4, c5, c6, c7, c8, c9, c10 = st.columns(
-        [2,1.2,2,1,1,1,1,1,1.2,0.5]
-    )
+ c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11 = st.columns(
+    [2,1.2,2,1,1,1,1,1,1,1,0.5]
+)
+
 
     with c1:
         cov = st.selectbox(
@@ -107,24 +108,30 @@ for i in st.session_state.rows:
         ) / 100
 
     with c6:
+    acq = st.number_input(
+        "% Akuisisi", 0.0, 100.0, 15.0,
+        key=f"acq_{i}"
+    ) / 100
+
+    with c7:
         kom_fak = st.number_input(
             "% Komisi Fak", 0.0, 100.0, 0.0,
             key=f"komf_{i}"
         ) / 100
 
-    with c7:
+    with c8:
         lol_exp = st.number_input(
             "% LOL Exposure", 0.0, 100.0, 100.0,
             key=f"lol_exp_{i}"
         ) / 100
 
-    with c8:
+    with c9:
         lol_prem = st.number_input(
             "% LOL Premi", 0.0, 100.0, 100.0,
             key=f"lol_prem_{i}"
         ) / 100
 
-    with c9:
+    with c10:
         top_raw = st.text_input(
             "Top Risk IDR",
             value="",
@@ -132,21 +139,21 @@ for i in st.session_state.rows:
         )
         top_risk = float(top_raw.replace(",", "")) if top_raw else tsi
 
-    with c10:
+    with c11:
         st.button("🗑️", on_click=del_row, args=(i,), key=f"del_{i}")
 
-    inputs.append({
-        "Coverage": cov,
-        "Rate": rate,
-        "TSI": tsi,
-        "TOP_RISK": top_risk,
-        "ASK": ask,
-        "FAC": fac,
-        "KOM_FAK": kom_fak,
-        "LOL_EXP": lol_exp,
-        "LOL_PREM": lol_prem,
-        "ACQ": st.session_state.get(f"acq_{i}", 0.15)
-    })
+ inputs.append({
+    "Coverage": cov,
+    "Rate": rate,
+    "TSI": tsi,
+    "TOP_RISK": top_risk,
+    "ASK": ask,
+    "FAC": fac,
+    "KOM_FAK": kom_fak,
+    "LOL_EXP": lol_exp,
+    "LOL_PREM": lol_prem,
+    "ACQ": st.session_state.get(f"acq_{i}", 0.15)
+})
 
 st.button("➕ Tambah Coverage", on_click=add_row)
 
