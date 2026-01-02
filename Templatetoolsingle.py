@@ -65,20 +65,27 @@ st.subheader("📋 Input Coverage")
 inputs = []
 
 for i in st.session_state.rows:
-    c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11 = st.columns(
-        [2,1.2,2,1,1,1,1,1,1,1,0.5]
-    )
 
-    with c1:
-        cov = st.selectbox(
-            "Coverage",
-            MASTER.index.tolist(),
-            key=f"cov_{i}"
-        )
+    # =========================
+    # COVERAGE (FULL WIDTH)
+    # =========================
+    st.markdown("**Coverage**")
+    cov = st.selectbox(
+        "",
+        MASTER.index.tolist(),
+        key=f"cov_{i}"
+    )
 
     m = MASTER.loc[cov]
 
-    with c2:
+    # =========================
+    # GRID INPUT LAINNYA
+    # =========================
+    c1, c2, c3, c4, c5, c6, c7, c8, c9, c10 = st.columns(
+        [1.2, 2, 1, 1, 1, 1, 1, 1, 1.2, 0.5]
+    )
+
+    with c1:
         rate = st.number_input(
             "Rate (%)",
             value=round(float(m.get("RATE_MIN", 0)) * 100, 5),
@@ -86,7 +93,7 @@ for i in st.session_state.rows:
             key=f"rate_{i}"
         ) / 100
 
-    with c3:
+    with c2:
         tsi_raw = st.text_input(
             "TSI IDR",
             value="0",
@@ -94,43 +101,49 @@ for i in st.session_state.rows:
         )
         tsi = float(tsi_raw.replace(",", "")) if tsi_raw else 0.0
 
-    with c4:
+    with c3:
         ask = st.number_input(
-            "% Askrindo", 0.0, 100.0, 10.0,
+            "% Askrindo",
+            0.0, 100.0, 10.0,
             key=f"ask_{i}"
         ) / 100
 
-    with c5:
+    with c4:
         fac = st.number_input(
-            "% Fakultatif", 0.0, 100.0, 0.0,
+            "% Fakultatif",
+            0.0, 100.0, 0.0,
             key=f"fac_{i}"
         ) / 100
 
-    with c6:
+    with c5:
         acq = st.number_input(
-            "% Akuisisi", 0.0, 100.0, 15.0,
+            "% Akuisisi",
+            0.0, 100.0, 15.0,
             key=f"acq_{i}"
         ) / 100
 
-    with c7:
+    with c6:
         kom_fak = st.number_input(
-            "% Komisi Fak", 0.0, 100.0, 0.0,
+            "% Komisi Fak",
+            0.0, 100.0, 0.0,
             key=f"komf_{i}"
         ) / 100
 
-    with c8:
+    with c7:
         lol_exp = st.number_input(
-            "% LOL TSI", 0.0, 100.0, 100.0,
+            "% LOL Exposure",
+            0.0, 100.0, 100.0,
             key=f"lol_exp_{i}"
         ) / 100
 
-    with c9:
+    with c8:
         lol_prem = st.number_input(
-            "% LOL Premi", 0.0, 100.0, 100.0,
+            "% LOL Premi",
+            0.0, 100.0, 100.0,
             key=f"lol_prem_{i}"
         ) / 100
 
-    with c10:
+    with c9:
         top_raw = st.text_input(
             "Top Risk IDR",
             value="",
@@ -138,9 +151,17 @@ for i in st.session_state.rows:
         )
         top_risk = float(top_raw.replace(",", "")) if top_raw else tsi
 
-    with c11:
-        st.button("🗑️", on_click=del_row, args=(i,), key=f"del_{i}")
+    with c10:
+        st.button(
+            "🗑️",
+            on_click=del_row,
+            args=(i,),
+            key=f"del_{i}"
+        )
 
+    # =========================
+    # COLLECT INPUT
+    # =========================
     inputs.append({
         "Coverage": cov,
         "Rate": rate,
@@ -148,14 +169,13 @@ for i in st.session_state.rows:
         "TOP_RISK": top_risk,
         "ASK": ask,
         "FAC": fac,
+        "ACQ": acq,
         "KOM_FAK": kom_fak,
         "LOL_EXP": lol_exp,
-        "LOL_PREM": lol_prem,
-        "ACQ": acq
+        "LOL_PREM": lol_prem
     })
 
 st.button("➕ Tambah Coverage", on_click=add_row)
-
 
 # =====================================================
 # CORE ENGINE
