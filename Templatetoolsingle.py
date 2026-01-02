@@ -178,15 +178,16 @@ def calc(row):
     Result = (
         Prem_Askrindo
         - Prem_POOL
-        + kom_pool
+        + Kom_POOL
         - Prem_Fac
-        + kom_fac
+        + Kom_Fac
         - EL_Askrindo
         + EL_POOL
         + EL_Fac
         - Expense
         - Prem_XOL
     )
+
 
     return {
         "Coverage": row["Coverage"],
