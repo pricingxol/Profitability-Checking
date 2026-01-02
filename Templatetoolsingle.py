@@ -120,7 +120,7 @@ for i in st.session_state.rows:
 
     with c8:
         lol_exp = st.number_input(
-            "% LOL Exposure", 0.0, 100.0, 100.0,
+            "% LOL TSI", 0.0, 100.0, 100.0,
             key=f"lol_exp_{i}"
         ) / 100
 
