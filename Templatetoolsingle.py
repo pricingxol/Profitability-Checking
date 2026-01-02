@@ -88,7 +88,7 @@ for i in st.session_state.rows:
     with c1:
         rate = float(st.text_input(
             "Rate (%)",
-            value="12.34567",
+            value="",
             key=f"rate_{i}"
         )) / 100
 
