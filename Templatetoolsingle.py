@@ -177,6 +177,7 @@ def calc(row):
     # ===============================
     Result = (
         Prem_Askrindo
+        - Akuisisi
         - Prem_POOL
         + Kom_POOL
         - Prem_Fac
