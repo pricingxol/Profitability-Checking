@@ -86,11 +86,13 @@ for i in st.session_state.rows:
     )
 
     with c1:
-        rate = float(st.text_input(
+        rate_raw = st.text_input(
             "Rate (%)",
             value="",
             key=f"rate_{i}"
-        )) / 100
+        )
+        
+        rate = float(rate_raw.replace(",", ".")) / 100 if rate_raw else 0.0
 
     with c2:
         tsi_raw = st.text_input(
