@@ -78,7 +78,7 @@ for i in st.session_state.rows:
         tsi = float(tsi_raw.replace(",", "")) if tsi_raw else 0.0
 
     with c3:
-        ask = st.number_input("% Askrindo", 0.0, 100.0, 10.0, key=f"ask_{i}") / 100
+        ask = st.number_input("% Askrindo", 0.0, 100.0, 100.0, key=f"ask_{i}") / 100
 
     with c4:
         fac = st.number_input("% Fakultatif", 0.0, 100.0, 0.0, key=f"fac_{i}") / 100
