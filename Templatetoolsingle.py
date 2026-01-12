@@ -12,7 +12,7 @@ st.set_page_config(
 )
 
 st.title("📊 Profitability Checking – Akseptasi Manual")
-st.caption("Versi Excel-driven | Logic match Bulk Profitability")
+st.caption("Versi Excel-driven | Logic match Bulk Profitability | by Divisi Aktuaria Askrindo")
 
 # =====================================================
 # LOAD MASTER EXCEL
