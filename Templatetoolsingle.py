@@ -7,12 +7,12 @@ import io
 # PAGE CONFIG
 # =====================================================
 st.set_page_config(
-    page_title="Profitability Checking – Akseptasi Manual",
+    page_title="Profitability Checking – Asuransi Umum",
     layout="wide"
 )
 
-st.title("📊 Profitability Checking – Akseptasi Manual")
-st.caption("Versi Excel-driven | Logic match Bulk Profitability | by Divisi Aktuaria Askrindo")
+st.title("📊 Profitability Checking – Asuransi Umum")
+st.caption("by Divisi Aktuaria Askrindo")
 
 # =====================================================
 # LOAD MASTER EXCEL
