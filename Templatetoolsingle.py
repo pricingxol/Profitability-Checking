@@ -29,7 +29,7 @@ MASTER = df_master.set_index("COVERAGE")
 st.sidebar.header("Asumsi")
 
 LOSS_RATIO = st.sidebar.number_input(
-    "Asumsi Loss Ratio", 0.0, 1.0, 0.40000,
+    "Asumsi Loss Ratio", 0.0, 1.0, 0.50000,
     step=0.00001, format="%.5f"
 )
 
