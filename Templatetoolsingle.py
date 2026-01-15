@@ -7,7 +7,7 @@ from datetime import date
 from reportlab.platypus import (
     SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 )
-from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib import colors
 
@@ -90,7 +90,6 @@ for i in st.session_state.rows:
 
     st.markdown("**Coverage**")
     cov = st.selectbox("", MASTER.index.tolist(), key=f"cov_{i}")
-    m = MASTER.loc[cov]
 
     c1, c2, c3, c4, c5, c6, c7, c8, c9, c10 = st.columns(
         [1.5, 2, 1, 1, 1, 1, 1, 1, 1.2, 0.5]
@@ -172,9 +171,6 @@ def calc(row):
     Prem_Fac      = Prem100 * (TSI_Fac / TSI100) if TSI100 else 0
     Prem_OR       = Prem100 * (Exposure_OR / TSI100) if TSI100 else 0
 
-    # ===============================
-    # EXPECTED LOSS (LOCKED LOGIC)
-    # ===============================
     EL100 = (
         rate_min * LOSS_RATIO * (TSI100 * row["LOL_EXP"])
         if not pd.isna(rate_min)
@@ -186,9 +182,6 @@ def calc(row):
     EL_Fac      = EL100 * (TSI_Fac / TSI100) if TSI100 else 0
     EL_OR       = EL100 * (Exposure_OR / TSI100) if TSI100 else 0
 
-    # ===============================
-    # SHORTFALL (INFORMATIONAL)
-    # ===============================
     Prem_Shortfall = Prem_Askrindo - Prem_POOL - Prem_Fac - Prem_OR
     EL_Shortfall   = EL_Askrindo - EL_POOL - EL_Fac - EL_OR
 
@@ -199,9 +192,6 @@ def calc(row):
     Prem_XOL = XOL_RATE * Prem_OR
     Expense  = EXP_RATIO * Prem_Askrindo
 
-    # ===============================
-    # FINAL RESULT (LOCKED)
-    # ===============================
     Result = (
         Prem_Askrindo
         - Akuisisi
@@ -215,7 +205,6 @@ def calc(row):
         - Expense
         - Prem_XOL
     )
-
 
     return {
         "Coverage": row["Coverage"],
@@ -236,16 +225,14 @@ def calc(row):
     }
 
 # =====================================================
-# HELPER UNTUK PDF (HEADER & FORMAT)
+# PDF HELPERS
 # =====================================================
-from reportlab.lib.styles import ParagraphStyle
-
 header_style = ParagraphStyle(
     name="TableHeader",
     fontName="Helvetica-Bold",
     fontSize=8,
     leading=10,
-    alignment=1  # CENTER
+    alignment=1
 )
 
 coverage_style = ParagraphStyle(
@@ -253,7 +240,7 @@ coverage_style = ParagraphStyle(
     fontName="Helvetica",
     fontSize=8,
     leading=10,
-    alignment=0  # LEFT
+    alignment=0
 )
 
 subtitle_style = ParagraphStyle(
@@ -261,22 +248,30 @@ subtitle_style = ParagraphStyle(
     fontName="Helvetica",
     fontSize=11,
     leading=14,
-    alignment=1  # CENTER
+    alignment=1
 )
 
 def format_header(col):
-    return Paragraph(
-        col.replace("_", "<br/>"),
-        header_style
-    )
+    return Paragraph(col.replace("_", "<br/>"), header_style)
 
 def fmt(x):
     if isinstance(x, (int, float)):
         return f"{x:,.0f}"
     return x
 
+def estimate_col_char_widths(df):
+    widths = []
+    for col in df.columns:
+        header_len = len(col.replace("_", " "))
+        body_len = df[col].astype(str).map(len).max()
+        max_len = max(header_len, body_len)
+        if col.upper() == "COVERAGE":
+            max_len *= 1.4
+        widths.append(max_len)
+    return widths
+
 # =====================================================
-# PDF GENERATOR (LANDSCAPE)
+# PDF GENERATOR
 # =====================================================
 def generate_pdf(df):
     buffer = io.BytesIO()
@@ -291,28 +286,13 @@ def generate_pdf(df):
     styles = getSampleStyleSheet()
     elements = []
 
-    elements.append(Paragraph(
-        "<b>Profitability Checking Asuransi Umum</b>",
-        styles["Title"]
-    ))
-
-    elements.append(Paragraph(
-        "PT Asuransi Kredit Indonesia",
-        subtitle_style
-    ))
-
+    elements.append(Paragraph("<b>Profitability Checking Asuransi Umum</b>", styles["Title"]))
+    elements.append(Paragraph("PT Asuransi Kredit Indonesia", subtitle_style))
     elements.append(Spacer(1, 16))
 
-
     elements.append(Paragraph(f"Nama Tertanggung : {nama_tertanggung}", styles["Normal"]))
-    elements.append(Paragraph(
-    f"Start Date : {start_date.strftime('%d/%m/%Y')}",
-    styles["Normal"]
-    ))
-    elements.append(Paragraph(
-        f"End Date : {end_date.strftime('%d/%m/%Y')}",
-        styles["Normal"]
-    ))
+    elements.append(Paragraph(f"Start Date : {start_date.strftime('%d/%m/%Y')}", styles["Normal"]))
+    elements.append(Paragraph(f"End Date : {end_date.strftime('%d/%m/%Y')}", styles["Normal"]))
     elements.append(Spacer(1, 12))
 
     elements.append(Paragraph("<b>Asumsi Digunakan</b>", styles["Heading2"]))
@@ -322,77 +302,48 @@ def generate_pdf(df):
     elements.append(Spacer(1, 12))
 
     header = [format_header(c) for c in df.columns]
+
     body = []
     for _, row in df.iterrows():
-        formatted_row = []
+        r = []
         for col, val in row.items():
             if col.upper() == "COVERAGE":
-                formatted_row.append(
-                    Paragraph(str(val), coverage_style)
-                )
+                r.append(Paragraph(str(val), coverage_style))
             elif col == "%Result":
-                formatted_row.append(f"{val:.2%}")
+                r.append(f"{val:.2%}")
             else:
-                formatted_row.append(fmt(val))
-        body.append(formatted_row)
+                r.append(fmt(val))
+        body.append(r)
 
     table_data = [header] + body
 
-
-
-    # ===============================
-    # AUTO-FIT TABLE WIDTH
-    # ===============================
     page_width, _ = landscape(A4)
-    usable_width = page_width - 60   # 30 left + 30 right margin
-    n_cols = len(df.columns)
-    col_widths = []
-    for col in df.columns:
-        if col.upper() == "COVERAGE":
-            col_widths.append(usable_width * 0.25)  # 25% utk Coverage
-        else:
-            col_widths.append((usable_width * 0.75) / (n_cols - 1))
+    usable_width = page_width - 60
 
-    
-    table = Table(
-        table_data,
-        colWidths=col_widths,
-        repeatRows=1
-    )
+    char_widths = estimate_col_char_widths(df)
+    total_chars = sum(char_widths)
+
+    col_widths = [(w / total_chars) * usable_width for w in char_widths]
+
+    table = Table(table_data, colWidths=col_widths, repeatRows=1)
+
     table.setStyle(TableStyle([
-    ("BACKGROUND", (0,0), (-1,0), colors.lightgrey),
-    ("GRID", (0,0), (-1,-1), 0.5, colors.grey),
-
-    # HEADER
-    ("ALIGN", (0,0), (-1,0), "CENTER"),
-    ("VALIGN", (0,0), (-1,0), "MIDDLE"),
-
-    # BODY
-    ("ALIGN", (1,1), (-1,-1), "RIGHT"),
-    ("VALIGN", (0,1), (-1,-1), "MIDDLE"),
-
-    # FONT
-    ("FONTSIZE", (0,0), (-1,-1), 8),
-    ("FONTNAME", (0,0), (-1,0), "Helvetica-Bold"),
-    ("FONTNAME", (0,-1), (-1,-1), "Helvetica-Bold"),
-
-    # TOTAL ROW
-    ("BACKGROUND", (0,-1), (-1,-1), colors.whitesmoke),
+        ("BACKGROUND", (0,0), (-1,0), colors.lightgrey),
+        ("GRID", (0,0), (-1,-1), 0.5, colors.grey),
+        ("ALIGN", (0,0), (-1,0), "CENTER"),
+        ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
+        ("ALIGN", (1,1), (-1,-1), "RIGHT"),
+        ("FONTNAME", (0,0), (-1,0), "Helvetica-Bold"),
+        ("FONTNAME", (0,-1), (-1,-1), "Helvetica-Bold"),
+        ("FONTSIZE", (0,0), (-1,-1), 8),
+        ("BACKGROUND", (0,-1), (-1,-1), colors.whitesmoke),
     ]))
-
-
 
     elements.append(table)
     elements.append(Spacer(1, 24))
 
-    elements.append(Paragraph(
-    f"Tanggal Export : {date.today().strftime('%d/%m/%Y')}",
-    styles["Normal"]
-    ))
-    elements.append(Paragraph(
-        f"Disusun oleh,<br/>{user_name}",
-        styles["Normal"]
-    ))
+    elements.append(Paragraph(f"Tanggal Export : {date.today().strftime('%d/%m/%Y')}", styles["Normal"]))
+    elements.append(Paragraph(f"Disusun oleh,<br/>{user_name}", styles["Normal"]))
 
     doc.build(elements)
     buffer.seek(0)
@@ -430,14 +381,6 @@ if st.button("🚀 Calculate"):
         }),
         use_container_width=True
     )
-
-    sf_cov = df.loc[df["Prem_Shortfall"] > 0, "Coverage"].tolist()
-    if sf_cov:
-        st.warning(
-            "⚠️ Terdapat shortfall pada coverage: "
-            + ", ".join(sf_cov)
-            + ". Shortfall telah tercermin dalam premi dan hasil profitabilitas sebagai bagian dari risiko net Askrindo."
-        )
 
     pdf = generate_pdf(df)
 
