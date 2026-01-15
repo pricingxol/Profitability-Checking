@@ -248,6 +248,14 @@ header_style = ParagraphStyle(
     alignment=1  # CENTER
 )
 
+coverage_style = ParagraphStyle(
+    name="CoverageBody",
+    fontName="Helvetica",
+    fontSize=8,
+    leading=10,
+    alignment=0  # LEFT
+)
+
 subtitle_style = ParagraphStyle(
     name="Subtitle",
     fontName="Helvetica",
@@ -318,7 +326,11 @@ def generate_pdf(df):
     for _, row in df.iterrows():
         formatted_row = []
         for col, val in row.items():
-            if col == "%Result":
+            if col.upper() == "COVERAGE":
+                formatted_row.append(
+                    Paragraph(str(val), coverage_style)
+                )
+            elif col == "%Result":
                 formatted_row.append(f"{val:.2%}")
             else:
                 formatted_row.append(fmt(val))
@@ -334,7 +346,13 @@ def generate_pdf(df):
     page_width, _ = landscape(A4)
     usable_width = page_width - 60   # 30 left + 30 right margin
     n_cols = len(df.columns)
-    col_widths = [usable_width / n_cols] * n_cols
+    col_widths = []
+    for col in df.columns:
+        if col.upper() == "COVERAGE":
+            col_widths.append(usable_width * 0.25)  # 25% utk Coverage
+        else:
+            col_widths.append((usable_width * 0.75) / (n_cols - 1))
+
     
     table = Table(
         table_data,
@@ -351,6 +369,7 @@ def generate_pdf(df):
 
     # BODY
     ("ALIGN", (1,1), (-1,-1), "RIGHT"),
+    ("VALIGN", (0,1), (-1,-1), "MIDDLE"),
 
     # FONT
     ("FONTSIZE", (0,0), (-1,-1), 8),
