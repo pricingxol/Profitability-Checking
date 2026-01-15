@@ -363,15 +363,16 @@ def generate_pdf(df):
 
     # BODY
     ("ALIGN", (1,1), (-1,-1), "RIGHT"),
+    ("VALIGN", (0,1), (-1,-1), "MIDDLE"),  # 👈 INI
 
     # FONT
     ("FONTSIZE", (0,0), (-1,-1), 8),
     ("FONTNAME", (0,0), (-1,0), "Helvetica-Bold"),
     ("FONTNAME", (0,-1), (-1,-1), "Helvetica-Bold"),
 
-    # TOTAL ROW
     ("BACKGROUND", (0,-1), (-1,-1), colors.whitesmoke),
-    ]))
+]))
+
 
 
 
