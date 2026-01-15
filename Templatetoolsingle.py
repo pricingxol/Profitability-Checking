@@ -252,7 +252,11 @@ subtitle_style = ParagraphStyle(
 )
 
 def format_header(col):
-    return Paragraph(col.replace("_", "<br/>"), header_style)
+    return Paragraph(
+        col.replace("_", "<br/>"),
+        header_style
+    )
+
 
 def fmt(x):
     if isinstance(x, (int, float)):
@@ -261,14 +265,27 @@ def fmt(x):
 
 def estimate_col_char_widths(df):
     widths = []
+
     for col in df.columns:
         header_len = len(col.replace("_", " "))
         body_len = df[col].astype(str).map(len).max()
         max_len = max(header_len, body_len)
-        if col.upper() == "COVERAGE":
-            max_len *= 1.4
+
+        col_u = col.upper()
+
+        if col_u == "COVERAGE":
+            max_len *= 2.2
+        elif col_u in ["PREM_ASKRINDO", "RESULT"]:
+            max_len *= 1.6
+        elif col_u == "%RESULT":
+            max_len *= 1.3
+        else:
+            max_len *= 0.9   # kolom sekunder mengalah
+
         widths.append(max_len)
+
     return widths
+
 
 # =====================================================
 # PDF GENERATOR
@@ -335,7 +352,7 @@ def generate_pdf(df):
         ("ALIGN", (1,1), (-1,-1), "RIGHT"),
         ("FONTNAME", (0,0), (-1,0), "Helvetica-Bold"),
         ("FONTNAME", (0,-1), (-1,-1), "Helvetica-Bold"),
-        ("FONTSIZE", (0,0), (-1,-1), 8),
+        ("FONTSIZE", (0,0), (-1,-1), 7),
         ("BACKGROUND", (0,-1), (-1,-1), colors.whitesmoke),
     ]))
 
