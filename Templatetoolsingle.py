@@ -248,6 +248,14 @@ header_style = ParagraphStyle(
     alignment=1  # CENTER
 )
 
+coverage_style = ParagraphStyle(
+    name="CoverageBody",
+    fontName="Helvetica",
+    fontSize=8,
+    leading=10,   # penting biar baris kedua tidak nabrak
+    alignment=0   # LEFT
+)
+
 subtitle_style = ParagraphStyle(
     name="Subtitle",
     fontName="Helvetica",
@@ -318,7 +326,11 @@ def generate_pdf(df):
     for _, row in df.iterrows():
         formatted_row = []
         for col, val in row.items():
-            if col == "%Result":
+            if col.upper() == "COVERAGE":
+                formatted_row.append(
+                    Paragraph(str(val), coverage_style)
+                )
+            elif col == "%Result":
                 formatted_row.append(f"{val:.2%}")
             else:
                 formatted_row.append(fmt(val))
